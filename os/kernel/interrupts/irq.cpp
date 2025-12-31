@@ -1,12 +1,11 @@
-#include "irq.h"
-#include "../../include/ports.h"
-#include "../drivers/keyboard.h"
 #include "../drivers/pic.h"
+#include "../terminal.h"
 
-extern "C" void irq_handler() {
-    uint8_t scancode = inb(0x60);
+extern "C" void irq_handler(int irq)
+{
+    if (irq == 1) {
+        terminal_writestring("KEY\n");
+    }
 
-    keyboard_handle(scancode);
-
-    pic_send_eoi(1);
+    pic_send_eoi(irq);
 }
