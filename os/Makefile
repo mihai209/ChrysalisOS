@@ -12,14 +12,16 @@ KERNEL = kernel.bin
 
 OBJS = \
 	$(BUILD)/boot.o \
+	$(BUILD)/gdt_flush.o \
+	$(BUILD)/gdt.o \
 	$(BUILD)/kernel.o \
 	$(BUILD)/idt.o \
 	$(BUILD)/irq.o \
 	$(BUILD)/interrupts.o \
 	$(BUILD)/keyboard.o \
 	$(BUILD)/pic.o \
-	$(BUILD)/gdt.o \
 	$(BUILD)/terminal.o
+
 
 # -------------------------
 # TARGETURI PRINCIPALE
@@ -69,6 +71,7 @@ $(BUILD)/gdt.o: kernel/arch/i386/gdt.cpp | $(BUILD)
 
 $(BUILD)/gdt_flush.o: kernel/arch/i386/gdt.asm | $(BUILD)
 	$(AS) $(ASFLAGS) $< -o $@
+
 
 
 

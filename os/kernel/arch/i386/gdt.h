@@ -16,5 +16,4 @@ struct GDTPointer {
 } __attribute__((packed));
 
 extern "C" void gdt_flush(uint32_t);
-
-void gdt_init();
+extern "C" void gdt_init();
