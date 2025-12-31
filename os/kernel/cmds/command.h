@@ -1,11 +1,16 @@
 #pragma once
 
-typedef void (*command_func)(const char* args);
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-struct Command {
+typedef void (*command_fn)(const char*);
+
+typedef struct {
     const char* name;
-    command_func func;
-};
+    command_fn func;
+} Command;
 
-extern Command command_table[];
-extern int command_count;
+#ifdef __cplusplus
+}
+#endif

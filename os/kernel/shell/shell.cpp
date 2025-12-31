@@ -1,9 +1,18 @@
 #include "shell.h"
 #include "../terminal.h"
-#include "../cmds/command.h"
+#include "../cmds/registry.h"
 
 static char buffer[128];
 static int index = 0;
+
+/* mini strcmp */
+static int strcmp(const char* a, const char* b) {
+    while (*a && (*a == *b)) {
+        a++;
+        b++;
+    }
+    return *(const unsigned char*)a - *(const unsigned char*)b;
+}
 
 static void execute_command(const char* input) {
     for (int i = 0; i < command_count; i++) {
@@ -13,6 +22,7 @@ static void execute_command(const char* input) {
         while (name[j] && input[j] && name[j] == input[j])
             j++;
 
+        /* potrivire exactă sau cu argument */
         if (name[j] == 0 && (input[j] == 0 || input[j] == ' ')) {
             const char* args = (input[j] == ' ') ? input + j + 1 : "";
             command_table[i].func(args);

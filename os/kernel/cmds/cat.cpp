@@ -2,11 +2,16 @@
 #include "../terminal.h"
 
 extern "C" void cmd_cat(const char* args) {
-    const FSNode* f = fs_find(args);
-    if (!f) {
-        terminal_writestring("File not found\n");
+    if (!args || !*args) {
+        terminal_writestring("usage: cat <file>\n");
         return;
     }
 
-    terminal_writestring(f->data);
+    const FSNode* node = fs_find(args);
+    if (!node) {
+        terminal_writestring("file not found\n");
+        return;
+    }
+
+    terminal_writestring(node->data);
 }
