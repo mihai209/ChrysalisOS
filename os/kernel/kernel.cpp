@@ -61,8 +61,11 @@ extern "C" void kernel_main() {
 
     rtc_print();
 
-    time_init();
-time_set_timezone(2); // România
+time_init();
+time_set_timezone(2);
+
+datetime t;
+time_get_local(&t);
 
 
     while (1)
