@@ -33,12 +33,14 @@ void shell_poll_input(void);
 extern "C" void kernel_main() {
 
 #if VGA_TEST
-    /* Test VGA graphics mode (mode 13h) */
+    /* Initialize our VGA driver (does NOT call BIOS). 
+       If you have a framebuffer from GRUB / multiboot, call vga_set_framebuffer() 
+       before vga_init() from your boot code. */
     vga_init();
     vga_clear(0); // culoare 0 = negru
 
-    /* desenăm o diagonală de test (culoare 15 = alb) */
-    for (int i = 0; i < 200; i++) {
+    /* desenăm o diagonală de test (culoare 15 = alb / 32bpp grayscale) */
+    for (int i = 0; i < 200 && i < 320; i++) {
         vga_putpixel(i, i, 15);
     }
 
