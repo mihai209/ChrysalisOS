@@ -5,9 +5,11 @@
 #include "ls.h"
 #include "cat.h"
 #include "touch.h"
+#include "date.h"
 
 Command command_table[] = {
     { "clear",    cmd_clear },
+    { "date",     cmd_date},
     { "reboot",   cmd_reboot },
     { "shutdown", cmd_shutdown },
     { "ls",       cmd_ls },

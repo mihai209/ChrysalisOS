@@ -37,6 +37,7 @@ OBJS = \
 	$(BUILD)/serial.o \
 	$(BUILD)/rtc.o \
 	$(BUILD)/clock.o \
+$(BUILD)/cmd_date.o
 
 
 
@@ -138,6 +139,10 @@ $(BUILD)/rtc.o: kernel/drivers/rtc.cpp | $(BUILD)
 
 $(BUILD)/clock.o: kernel/time/clock.cpp | $(BUILD)
 	$(CXX) $(CXXFLAGS) -m32 -c $< -o $@
+
+$(BUILD)/cmd_date.o: kernel/cmds/date.cpp | $(BUILD)
+	$(CXX) $(CXXFLAGS) -m32 -c $< -o $@
+
 
 # -------------------------
 # LINK
