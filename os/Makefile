@@ -145,10 +145,8 @@ clean:
 	rm -rf build *.iso
 
 consolerun: iso
-	qemu-system-x86_64 \
-		-cdrom chrysalis.iso \
-		-nographic \
-		-serial stdio
+	qemu-system-x86_64 -cdrom chrysalis.iso -nographic
+
 
 # -------------------------
 # HELP
