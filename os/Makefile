@@ -35,6 +35,8 @@ OBJS = \
 	$(BUILD)/pit.o \
     $(BUILD)/load.o \
 	$(BUILD)/serial.o \
+	$(BUILD)/rtc.o \
+
 
 
 
@@ -127,6 +129,9 @@ $(BUILD)/load.o: kernel/debug/load.cpp | $(BUILD)
 	$(CXX) $(CXXFLAGS) -m32 -c $< -o $@
 
 $(BUILD)/serial.o: kernel/drivers/serial.cpp | $(BUILD)
+	$(CXX) $(CXXFLAGS) -m32 -c $< -o $@
+
+$(BUILD)/rtc.o: kernel/drivers/rtc.cpp | $(BUILD)
 	$(CXX) $(CXXFLAGS) -m32 -c $< -o $@
 
 # -------------------------

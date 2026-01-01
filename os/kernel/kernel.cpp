@@ -9,6 +9,7 @@
 #include "bootlogo/bootlogo.h"
 // #include "debug/load.h"   // dezactivat temporar
 #include "drivers/serial.h"
+#include "drivers/rtc.h"
 
 extern "C" void kernel_main() {
 
@@ -55,6 +56,7 @@ extern "C" void kernel_main() {
     asm volatile("sti");
 
     terminal_writestring("\nSystem ready.\n> ");
+rtc_print();
 
     while (1)
         asm volatile("hlt");
