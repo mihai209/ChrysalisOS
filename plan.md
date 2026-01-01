@@ -14,7 +14,7 @@
 | ✅      | Terminal VGA (text) | stabil                       |
 | ✅     | Serial COM1         | stabil |
 | ✅     | CMOS / RTC          | ușor, util                   |
-| 🔲     | PC Speaker          | simplu + fun                 |
+| ✅      | PC Speaker          | simplu + fun                 |
 
 
 🟡 NIVEL 2 — Input & timing
