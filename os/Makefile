@@ -41,7 +41,11 @@ $(BUILD)/cmd_date.o \
 $(BUILD)/speaker.o \
 $(BUILD)/cmd_beep.o \
 $(BUILD)/audio.o \
-$(BUILD)/shortcuts.o
+$(BUILD)/shortcuts.o \
+$(BUILD)/string.o \
+$(BUILD)/cmd_play.o \
+$(BUILD)/mlb.o \
+
 
 
 
@@ -159,7 +163,14 @@ $(BUILD)/audio.o: kernel/drivers/audio/audio.cpp | $(BUILD)
 $(BUILD)/shortcuts.o: kernel/shortcuts/shortcuts.cpp | $(BUILD)
 	$(CXX) $(CXXFLAGS) -m32 -c $< -o $@
 
+$(BUILD)/string.o: kernel/string.cpp | $(BUILD)
+	$(CXX) $(CXXFLAGS) -m32 -c $< -o $@
 
+$(BUILD)/cmd_play.o: kernel/cmds/play.cpp | $(BUILD)
+	$(CXX) $(CXXFLAGS) -m32 -c $< -o $@
+
+$(BUILD)/mlb.o: kernel/mlb/mlb.cpp | $(BUILD)
+	$(CXX) $(CXXFLAGS) -m32 -c $< -o $@
 
 # -------------------------
 # LINK

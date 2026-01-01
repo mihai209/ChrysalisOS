@@ -7,10 +7,11 @@
 #include "touch.h"
 #include "date.h"
 #include "beep.h"
-
+#include "play.h"
 
 Command command_table[] = {
     { "beep",     cmd_beep},
+    { "play",     cmd_play},
     { "clear",    cmd_clear },
     { "date",     cmd_date},
     { "reboot",   cmd_reboot },
