@@ -11,6 +11,7 @@
 #include "drivers/serial.h"
 #include "drivers/rtc.h"
 #include "time/clock.h"
+#include "drivers/audio/audio.h"
 
 extern "C" void kernel_main() {
 
@@ -49,6 +50,8 @@ extern "C" void kernel_main() {
     // load_begin("PIT");
     pit_init(100);
     // load_ok();
+
+    audio_init();
 
     // serial debug (optional)
     serial_init();

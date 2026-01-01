@@ -2,6 +2,7 @@
 #include "keyboard.h"
 #include "../interrupts/irq.h"
 #include "../shell/shell.h"
+#include "shortcuts.h"
 
 static const char keymap[128] = {
     0, 27, '1','2','3','4','5','6','7','8','9','0','-','=', '\b',
@@ -18,6 +19,10 @@ extern "C" void keyboard_handler(registers_t* regs)
     uint8_t scancode;
     asm volatile("inb %1, %0" : "=a"(scancode) : "Nd"(0x60));
 
+    // 🔹 shortcut logic (Ctrl, Ctrl+C etc.)
+    shortcuts_handle_scancode(scancode);
+
+    // key release → ignorăm
     if (scancode & 0x80)
         return;
 
