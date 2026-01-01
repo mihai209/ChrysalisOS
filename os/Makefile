@@ -27,6 +27,7 @@ OBJS = \
 	$(BUILD)/cmd_reboot.o \
 	$(BUILD)/cmd_shutdown.o \
 	$(BUILD)/cmd_registry.o \
+	$(BUILD)/bootlogo.o \
 	$(BUILD)/fs.o \
 	$(BUILD)/cmd_ls.o \
 	$(BUILD)/cmd_cat.o \
@@ -112,6 +113,9 @@ $(BUILD)/cmd_cat.o: kernel/cmds/cat.cpp | $(BUILD)
 	$(CXX) $(CXXFLAGS) -m32 -c $< -o $@
 
 $(BUILD)/cmd_touch.o: kernel/cmds/touch.cpp | $(BUILD)
+	$(CXX) $(CXXFLAGS) -m32 -c $< -o $@
+
+$(BUILD)/bootlogo.o: kernel/bootlogo/bootlogo.cpp | $(BUILD)
 	$(CXX) $(CXXFLAGS) -m32 -c $< -o $@
 
 # -------------------------

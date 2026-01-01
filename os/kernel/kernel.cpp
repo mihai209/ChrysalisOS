@@ -4,6 +4,7 @@
 #include "arch/i386/idt.h"
 #include "shell/shell.h"
 #include "fs/fs.h"
+#include "bootlogo/bootlogo.h"
 
 
 extern "C" void kernel_main() {
@@ -12,6 +13,7 @@ extern "C" void kernel_main() {
     pic_remap();
 
     terminal_init();
+    bootlogo_show();
     shell_init();
     fs_init();
     terminal_writestring("Chrysalis OS\n");
