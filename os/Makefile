@@ -47,6 +47,8 @@ $(BUILD)/cmd_play.o \
 $(BUILD)/mlb.o \
 $(BUILD)/mouse.o \
 $(BUILD)/keyboard_buffer.o \
+$(BUILD)/keymap.o \
+$(BUILD)/keymap_us.o \
 
 
 
@@ -176,9 +178,16 @@ $(BUILD)/mlb.o: kernel/mlb/mlb.cpp | $(BUILD)
 
 $(BUILD)/mouse.o: kernel/drivers/mouse.cpp | $(BUILD)
 	$(CXX) $(CXXFLAGS) -m32 -c $< -o $@
-	
+
 $(BUILD)/keyboard_buffer.o: kernel/input/keyboard_buffer.cpp | $(BUILD)
 	$(CXX) $(CXXFLAGS) -m32 -c $< -o $@
+
+$(BUILD)/keymap.o: kernel/keyboard/keymap.c | $(BUILD)
+	$(CXX) $(CXXFLAGS) -m32 -c $< -o $@
+
+$(BUILD)/keymap_us.o: kernel/keyboard/keymap_us.c | $(BUILD)
+	$(CXX) $(CXXFLAGS) -m32 -c $< -o $@
+
 
 # -------------------------
 # LINK
