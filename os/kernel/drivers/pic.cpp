@@ -19,8 +19,8 @@ extern "C" void pic_remap()
     outb(PIC1_COMMAND, ICW1_INIT | ICW1_ICW4);
     outb(PIC2_COMMAND, ICW1_INIT | ICW1_ICW4);
 
-    outb(PIC1_DATA, 0x20);
-    outb(PIC2_DATA, 0x28);
+    outb(PIC1_DATA, 0x20); // IRQ 0–7 → 32–39
+    outb(PIC2_DATA, 0x28); // IRQ 8–15 → 40–47
 
     outb(PIC1_DATA, 4);
     outb(PIC2_DATA, 2);
@@ -28,16 +28,8 @@ extern "C" void pic_remap()
     outb(PIC1_DATA, ICW4_8086);
     outb(PIC2_DATA, ICW4_8086);
 
-    // UNMASK IRQ0 + IRQ1
-    outb(PIC1_DATA, 0xFC);
+    // 🔥 UNMASK: permitem doar IRQ0 și IRQ1
+    outb(PIC1_DATA, 0xFC); // 11111100
     outb(PIC2_DATA, 0xFF);
 }
 
-
-extern "C" void pic_send_eoi(uint8_t irq)
-{
-    if (irq >= 8)
-        outb(PIC2_COMMAND, 0x20);
-
-    outb(PIC1_COMMAND, 0x20);
-}
