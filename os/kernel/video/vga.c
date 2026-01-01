@@ -130,3 +130,9 @@ void vga_draw_rect(int x, int y, int w, int h, uint8_t color)
         }
     }
 }
+
+/* NEW getters */
+uint32_t vga_get_width(void)  { return fb_width; }
+uint32_t vga_get_height(void) { return fb_height; }
+uint8_t  vga_get_bpp(void)    { return fb_bpp; }
+int      vga_has_framebuffer(void) { return (fb_addr != 0) ? 1 : 0; }
