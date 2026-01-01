@@ -34,6 +34,8 @@ OBJS = \
 	$(BUILD)/cmd_touch.o \
 	$(BUILD)/pit.o \
     $(BUILD)/load.o \
+	$(BUILD)/serial.o \
+
 
 
 # -------------------------
@@ -122,6 +124,9 @@ $(BUILD)/pit.o: kernel/drivers/pit.cpp | $(BUILD)
 	$(CXX) $(CXXFLAGS) -m32 -c $< -o $@
 
 $(BUILD)/load.o: kernel/debug/load.cpp | $(BUILD)
+	$(CXX) $(CXXFLAGS) -m32 -c $< -o $@
+
+$(BUILD)/serial.o: kernel/drivers/serial.cpp | $(BUILD)
 	$(CXX) $(CXXFLAGS) -m32 -c $< -o $@
 
 # -------------------------
