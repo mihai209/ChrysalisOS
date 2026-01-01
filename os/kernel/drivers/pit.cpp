@@ -1,5 +1,6 @@
 #include "pit.h"
 #include "../interrupts/irq.h"
+#include "../arch/i386/io.h"
 
 static volatile uint64_t pit_ticks = 0;
 
@@ -7,16 +8,12 @@ static void pit_callback(registers_t*) {
     pit_ticks++;
 }
 
-void pit_init(uint32_t frequency) {
-    // frecvența de bază PIT
-    uint32_t divisor = 1193180 / frequency;
+void pit_init(uint32_t freq) {
+    uint32_t divisor = 1193180 / freq;
 
-    // comandă PIT
     outb(0x43, 0x36);
-
-    // trimite divisor (low + high)
     outb(0x40, divisor & 0xFF);
-    outb(0x40, (divisor >> 8) & 0xFF);
+    outb(0x40, divisor >> 8);
 
     irq_install_handler(0, pit_callback);
 }

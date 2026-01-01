@@ -1,5 +1,6 @@
 #include <stdint.h>
 #include "keyboard.h"
+#include "../interrupts/irq.h"
 #include "../terminal.h"
 #include "../shell/shell.h"
 
@@ -11,8 +12,7 @@ static const char keymap[128] = {
     0,'*',0,' '
 };
 
-extern "C" void keyboard_handler()
-{
+static void keyboard_irq(registers_t*) {
     uint8_t scancode;
     asm volatile("inb %1, %0" : "=a"(scancode) : "Nd"(0x60));
 
@@ -20,8 +20,10 @@ extern "C" void keyboard_handler()
         return;
 
     char c = keymap[scancode];
-
     if (c)
-    shell_handle_char(c);
+        shell_handle_char(c);
+}
 
+void keyboard_init() {
+    irq_install_handler(1, keyboard_irq);
 }

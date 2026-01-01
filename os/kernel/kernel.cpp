@@ -2,39 +2,35 @@
 #include "drivers/pic.h"
 #include "arch/i386/gdt.h"
 #include "arch/i386/idt.h"
+#include "drivers/keyboard.h"
+#include "drivers/pit.h"
 #include "shell/shell.h"
 #include "fs/fs.h"
 #include "bootlogo/bootlogo.h"
-#include "drivers/pit.h"
-
 
 extern "C" void kernel_main() {
+    /* low-level CPU setup */
     gdt_init();
     idt_init();
     pic_remap();
 
+    /* subsystems */
     terminal_init();
     bootlogo_show();
-    shell_init();
+
     fs_init();
+    shell_init();
+
+    keyboard_init();     // IRQ1
+    pit_init(100);       // IRQ0 – 100 Hz
 
     terminal_writestring("Chrysalis OS\n");
     terminal_writestring("Type commands below:\n> ");
 
     asm volatile("sti");
 
-    pit_init(100); // 100 Hz
-
-    uint64_t last_tick = 0;
-
+    /* main idle loop */
     while (1) {
-        uint64_t t = pit_get_ticks();
-
-        if (t != last_tick && t % 100 == 0) {
-            terminal_writestring(".");
-            last_tick = t;
-        }
-
         asm volatile("hlt");
     }
 }
