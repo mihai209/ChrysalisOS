@@ -12,6 +12,7 @@
 #include "drivers/rtc.h"
 #include "time/clock.h"
 #include "drivers/audio/audio.h"
+#include "drivers/mouse.h"
 
 extern "C" void kernel_main() {
 
@@ -52,6 +53,7 @@ extern "C" void kernel_main() {
     // load_ok();
 
     audio_init();
+    mouse_init();
 
     // serial debug (optional)
     serial_init();

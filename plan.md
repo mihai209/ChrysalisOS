@@ -22,7 +22,7 @@
 
 | Status | Componentă        | De ce contează  |
 | ------ | ----------------- | --------------- |
-| 🔲     | Mouse PS/2        | IRQ12           |
+| ✅     | Mouse PS/2        | IRQ12           |
 | 🔲     | Keyboard buffer   | input corect    |
 | 🔲     | Keymap (US / RO)  | extensibil      |
 | 🔲     | Timer abstraction | `sleep(ms)`     |

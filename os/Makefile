@@ -45,6 +45,7 @@ $(BUILD)/shortcuts.o \
 $(BUILD)/string.o \
 $(BUILD)/cmd_play.o \
 $(BUILD)/mlb.o \
+$(BUILD)/mouse.o \
 
 
 
@@ -170,6 +171,9 @@ $(BUILD)/cmd_play.o: kernel/cmds/play.cpp | $(BUILD)
 	$(CXX) $(CXXFLAGS) -m32 -c $< -o $@
 
 $(BUILD)/mlb.o: kernel/mlb/mlb.cpp | $(BUILD)
+	$(CXX) $(CXXFLAGS) -m32 -c $< -o $@
+
+$(BUILD)/mouse.o: kernel/drivers/mouse.cpp | $(BUILD)
 	$(CXX) $(CXXFLAGS) -m32 -c $< -o $@
 
 # -------------------------
