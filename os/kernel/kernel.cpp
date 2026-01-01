@@ -9,28 +9,26 @@
 #include "bootlogo/bootlogo.h"
 
 extern "C" void kernel_main() {
-    /* low-level CPU setup */
     gdt_init();
     idt_init();
     pic_remap();
 
-    /* subsystems */
     terminal_init();
     bootlogo_show();
 
     fs_init();
     shell_init();
 
-    keyboard_init();     // IRQ1
-    pit_init(100);       // IRQ0 – 100 Hz
+    keyboard_init();   // IRQ1
+    pit_init(100);     // IRQ0
+
+    asm volatile("sti");
 
     terminal_writestring("Chrysalis OS\n");
     terminal_writestring("Type commands below:\n> ");
 
-    asm volatile("sti");
-
-    /* main idle loop */
     while (1) {
         asm volatile("hlt");
     }
 }
+
