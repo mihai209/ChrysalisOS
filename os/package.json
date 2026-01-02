@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "//_general": "Scripturi pentru dezvoltarea Chrysalis OS de catre Mihai209",
   "scripts": {
+
+    "run-hdd": "clear ; qemu-system-x86_64 -cdrom chrysalis.iso -hda hdd.img",
+
     "//_all": "Curata, compileaza si creeaza imaginea ISO",
     "all": "clear ; make clean && make && make iso",
 
