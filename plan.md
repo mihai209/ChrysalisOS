@@ -37,7 +37,7 @@
 | Status | Componentă            | Comentariu          |
 | ------ | --------------------- | ------------------- |
 | ✅      | ATA PIO               | ideal pt început    |
-| 🔲     | Detectare HDD         | identify            |
+| ✅      | Detectare HDD         | identify            |
 | 🔲     | Read sector           | milestone major     |
 | 🔲     | Write sector          | atenție la corupere |
 | 🔲     | Cache simplu          | performanță         |
