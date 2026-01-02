@@ -7,21 +7,21 @@
     "all": "clear ; make clean && make && make iso",
 
     "//_run": "Ruleaza OS-ul in mod standard VGA",
-    "run": "qemu-system-x86_64 -cdrom chrysalis.iso",
+    "run": "clear ; qemu-system-x86_64 -cdrom chrysalis.iso",
 
     "//_run-serial": "Debug prin terminal folosind portul serial",
-    "run-serial": "qemu-system-x86_64 -cdrom chrysalis.iso -serial stdio",
+    "run-serial": "clear ; qemu-system-x86_64 -cdrom chrysalis.iso -serial stdio",
 
     "//_run-audio": "Activeaza driverul de PC Speaker (pentru beeps)",
-    "run-audio": "qemu-system-x86_64 -audiodev pa,id=snd0 -machine pcspk-audiodev=snd0 -cdrom chrysalis.iso",
+    "run-audio": "clear ; qemu-system-x86_64 -audiodev pa,id=snd0 -machine pcspk-audiodev=snd0 -cdrom chrysalis.iso",
 
     "//_run-debug": "Afiseaza intreruperile hardware in timp real",
-    "run-debug": "qemu-system-x86_64 -cdrom chrysalis.iso -serial stdio -d int",
+    "run-debug": "clear ; qemu-system-x86_64 -cdrom chrysalis.iso -serial stdio -d int",
 
     "//_run-gdb": "Porneste in mod asteptare pentru depanare cu GDB",
-    "run-gdb": "qemu-system-x86_64 -cdrom chrysalis.iso -s -S",
+    "run-gdb": "clear ; qemu-system-x86_64 -cdrom chrysalis.iso -s -S",
 
     "//font-get": "face rost de fontu din grub",
-    "font-get": "grub-mkfont -s 24 -o iso/boot/grub/unicode.pf2 /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
+    "font-get": "clear ; grub-mkfont -s 24 -o iso/boot/grub/unicode.pf2 /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
   }
 }
