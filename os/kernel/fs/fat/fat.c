@@ -2,11 +2,29 @@
 /*#include "../../storage/ata.h"*/
 #include "fat.h"
 #include "../../terminal.h"
+#include <stdint.h>
+#include <stdbool.h>
 
 /* Forward declaration only for ATA function used here.
    Do NOT forward-declare terminal_writestring because terminal.h
    already declares it (with const char*). */
 int ata_read_sector(uint32_t lba, uint8_t *buf);
+
+/* mount state (must be visible to functions below) */
+static uint32_t fat_lba_base = 0;
+static int fat_mounted = 0;
+
+/* returnează 1 dacă e montat, 0 altfel */
+int fat_is_mounted(void)
+{
+    return fat_mounted ? 1 : 0;
+}
+
+/* returnează LBA-ul montat (valoare utilă numai dacă fat_is_mounted() == 1) */
+uint32_t fat_get_mounted_lba(void)
+{
+    return fat_lba_base;
+}
 
 /* Local integer helpers (already in fat.h types) */
 static inline uint16_t read_u16_le(const uint8_t *b, int off) {
@@ -42,9 +60,35 @@ static uint16_t b_root_entry_count;
 static uint16_t b_sectors_per_fat;
 static uint32_t b_total_sectors;
 
-/* mount state */
-static uint32_t fat_lba_base = 0;
-static int fat_mounted = 0;
+/* detectează dacă la LBA există un FAT valid (fără a-l monta) */
+int fat_probe(uint32_t lba)
+{
+    uint8_t sector[512];
+
+    if (ata_read_sector(lba, sector) != 0)
+        return 0;
+
+    uint16_t bytes_per_sector = read_u16_le(sector, 11);
+    uint8_t  sectors_per_cluster = sector[13];
+    uint8_t  fats = sector[16];
+    uint16_t sectors_per_fat = read_u16_le(sector, 22);
+
+    /* verificări minime BPB */
+    if (bytes_per_sector != 512)
+        return 0;
+
+    if (sectors_per_cluster == 0)
+        return 0;
+
+    if (fats == 0)
+        return 0;
+
+    if (sectors_per_fat == 0)
+        return 0;
+
+    return 1; /* pare FAT valid */
+}
+
 
 bool fat_mount(uint32_t lba_start)
 {
