@@ -20,6 +20,7 @@
 #include "video/vga.h"
 #include "time/timer.h"
 #include "events/event_queue.h"
+#include "storage/ata.h"
 /* Dacă shell.h nu declară shell_poll_input(), avem o declarație locală ca fallback */
 #ifdef __cplusplus
 extern "C" {
@@ -141,6 +142,7 @@ extern "C" void kernel_main(uint32_t magic, uint32_t addr) {
 
     datetime t;
     time_get_local(&t);
+    ata_init();
 
     while (1) {
         shell_poll_input();
