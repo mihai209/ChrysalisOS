@@ -1,5 +1,5 @@
-#include <stdint.h>
-#include <stddef.h>
+#include <types.h>
+
 
 #include "terminal.h"
 #include "drivers/pic.h"
@@ -10,17 +10,17 @@
 #include "shell/shell.h"
 #include "fs/fs.h"
 #include "bootlogo/bootlogo.h"
-// #include "debug/load.h"   // dezactivat temporar
 #include "drivers/serial.h"
 #include "drivers/rtc.h"
 #include "time/clock.h"
 #include "drivers/audio/audio.h"
 #include "drivers/mouse.h"
-#include "input/keyboard_buffer.h" // pentru kbd_buffer_init()
+#include "input/keyboard_buffer.h"
 #include "video/vga.h"
 #include "time/timer.h"
 #include "events/event_queue.h"
 #include "storage/ata.h"
+/*#include "debug/debug.h"*/
 /* Dacă shell.h nu declară shell_poll_input(), avem o declarație locală ca fallback */
 #ifdef __cplusplus
 extern "C" {

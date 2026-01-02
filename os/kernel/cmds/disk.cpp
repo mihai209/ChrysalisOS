@@ -6,6 +6,9 @@
 
 #include "../storage/ata.h"
 #include "../terminal.h"
+#include "../fs/fat/fat.h"
+
+static bool fat_is_mounted = false;
 
 /* Minimal freestanding helpers (avoid host libc headers that pull in bits/...) */
 static size_t k_strlen(const char* s) {
@@ -33,8 +36,10 @@ static char* u32_to_dec(char* out, uint32_t v)
     for (int i = ti - 1, j = 0; i >= 0; --i, ++j) out[j] = tmp[i];
     return out + ti;
 }
+/*static __attribute__((unused)) char* i32_to_dec(char* out, int32_t v)
+*/
+static inline char* i32_to_dec(char* out, int32_t v)
 
-static char* i32_to_dec(char* out, int32_t v)
 {
     if (v < 0) { *out++ = '-'; return u32_to_dec(out, (uint32_t)(-v)); }
     return u32_to_dec(out, (uint32_t)v);
@@ -453,16 +458,42 @@ void cmd_disk(const char* args)
 }
 
 
-    if (strcmp(argv[0], "--init") == 0) {
-        println("[disk] initializing (write MBR) ...");
-        create_minimal_mbr();
-        return;
+if (strcmp(argv[0], "--init") == 0) {
+    println("[disk] initializing (write MBR) ...");
+
+    create_minimal_mbr();
+
+    cmd_scan();
+
+    if (!fat_is_mounted && g_assigns[0].used) {
+        if (fat_mount(g_assigns[0].lba)) {
+            fat_is_mounted = true;
+            println("[disk] FAT mounted");
+        } else {
+            println("[disk] FAT mount failed");
+        }
     }
 
-    if (strcmp(argv[0], "--scan") == 0) {
-    cmd_scan();
     return;
 }
+
+if (strcmp(argv[0], "--scan") == 0) {
+    cmd_scan();
+
+    if (!fat_is_mounted && g_assigns[0].used) {
+        if (fat_mount(g_assigns[0].lba)) {
+            fat_is_mounted = true;
+            println("[disk] FAT mounted");
+        } else {
+            println("[disk] FAT mount failed");
+        }
+    }
+
+    return;
+}
+
+
+
 
 
     if (strcmp(argv[0], "--assign") == 0) {
@@ -521,6 +552,27 @@ void cmd_disk(const char* args)
             return;
         }
     }
+
+if (strcmp(argv[0], "fat") == 0) {
+    if (argc >= 2 && strcmp(argv[1], "info") == 0) {
+        fat_info();
+        return;
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
     println("[disk] unknown command");
     cmd_usage();
