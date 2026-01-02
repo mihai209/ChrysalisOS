@@ -27,8 +27,8 @@
 | ✅     | Keymap (US / RO)  | extensibil      |
 | ✅     | Timer abstraction | `sleep(ms)`     |
 | ✅     | Uptime / ticks    | sistem stabil   |
-| 🔲     | Delay calibrat    | pentru drivere  |
-| 🔲     | Event queue       | bază pentru GUI |
+| da dracu stie     | Delay calibrat    | pentru drivere  |
+| ✅     | Event queue       | bază pentru GUI |
 
 
 🔵 NIVEL 3 — Storage
