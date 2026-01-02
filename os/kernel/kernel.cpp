@@ -19,7 +19,7 @@
 #include "input/keyboard_buffer.h" // pentru kbd_buffer_init()
 #include "video/vga.h"
 #include "time/timer.h"
-
+#include "events/event_queue.h"
 /* Dacă shell.h nu declară shell_poll_input(), avem o declarație locală ca fallback */
 #ifdef __cplusplus
 extern "C" {
@@ -117,6 +117,7 @@ extern "C" void kernel_main(uint32_t magic, uint32_t addr) {
 
     serial_init();
     serial_write_string("=== Chrysalis OS serial online ===\r\n");
+    event_queue_init();
 
     /* --- KEY CHANGE: enable interrupts NOW (after IRQ handlers installed) --- */
     asm volatile("sti");

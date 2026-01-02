@@ -1,14 +1,20 @@
+// kernel/drivers/keyboard.cpp
 #include <stdint.h>
+#include <stdbool.h>
+
 #include "keyboard.h"
 
 #include "../interrupts/irq.h"
-#include "../shell/shell.h"
 #include "../shortcuts/shortcuts.h"
 #include "../input/keyboard_buffer.h"
 
 /* include keymap */
 #include "../keyboard/keymap.h"
 #include "../keyboard/keymaps.h"
+
+/* include event queue */
+#include "../events/event.h"
+#include "../events/event_queue.h"
 
 /* state flags */
 static int ctrl_pressed = 0;
@@ -53,6 +59,14 @@ extern "C" void keyboard_handler(registers_t* regs)
             handled = true;
         }
 
+        /* push event release */
+        event_t ev;
+        ev.type = EVENT_KEY;
+        ev.key.scancode = sc;
+        ev.key.ascii = 0; /* no ascii on release */
+        ev.key.pressed = 0;
+        (void)event_push(&ev); /* ignore failure */
+
         /* ignore other releases */
         if (!handled)
             handled = true;
@@ -79,6 +93,14 @@ extern "C" void keyboard_handler(registers_t* regs)
             /* translate scancode -> char using current keymap + shift + altgr flags */
             char c = keymap_translate(scancode, shift_pressed, altgr_pressed);
 
+            /* push event (press) into queue */
+            event_t ev;
+            ev.type = EVENT_KEY;
+            ev.key.scancode = scancode;
+            ev.key.ascii = c;
+            ev.key.pressed = 1;
+            (void)event_push(&ev); /* best-effort; drop if full */
+
             if (c) {
                 /* notify shortcuts about the produced character (ex: 'l') */
                 shortcuts_notify_char(c);
@@ -91,7 +113,7 @@ extern "C" void keyboard_handler(registers_t* regs)
                 }
             }
 
-            /* normal input */
+            /* normal input: keep kbd_push for compatibility (shell) */
             if (!handled) {
                 if (c) {
                     kbd_push(c);

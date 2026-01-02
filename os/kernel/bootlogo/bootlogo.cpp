@@ -113,7 +113,7 @@ void bootlogo_show() {
 
     print("Boot mode      : Protected 32-bit\n");
     print("Platform       : PC compatible\n");
-    print("Mode           : Development")
+    print("Mode           : Development");
 
     print("\n---------------------------------\n");
     print("Starting kernel...\n\n");

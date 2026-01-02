@@ -3,6 +3,10 @@
 #include "../cmds/registry.h"
 #include "../input/keyboard_buffer.h"
 
+/* event queue includes */
+#include "../events/event.h"
+#include "../events/event_queue.h"
+
 static char buffer[128];
 static int index = 0;
 
@@ -65,13 +69,29 @@ void shell_handle_char(char c) {
     }
 }
 
-/* --- new: poll input from keyboard buffer and feed shell --- */
+/* --- new: poll input from event_queue first, then fallback to keyboard_buffer --- */
 void shell_poll_input(void)
 {
+    /* 1) consume events from event queue (preferred) */
+    event_t ev;
+    while (event_pop(&ev) == 0) {
+        if (ev.type == EVENT_KEY) {
+            /* only feed on key press events (pressed == 1) to match previous behavior */
+            if (ev.key.pressed) {
+                /* if ascii==0 (non-printable), we ignore — you can extend this later */
+                if (ev.key.ascii) {
+                    shell_handle_char(ev.key.ascii);
+                }
+            }
+        }
+        /* future: handle EVENT_MOUSE, EVENT_TIMER, etc. */
+    }
+
+    /* 2) fallback: consume legacy keyboard buffer (compat) 
     while (kbd_has_char()) {
         char c = kbd_get_char();
         shell_handle_char(c);
-    }
+    }*/
 }
 
 void shell_reset_input(void) {
