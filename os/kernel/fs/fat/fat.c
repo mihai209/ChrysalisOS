@@ -1,40 +1,53 @@
-/* freestanding FAT reader (minimal) - no libc headers */
-/*#include "../../storage/ata.h"*/
+/* freestanding FAT reader - cu suport FAT32 complet, fără <string.h> */
 #include "fat.h"
 #include "../../terminal.h"
 #include <stdint.h>
 #include <stdbool.h>
-
-/* Forward declaration only for ATA function used here.
-   Do NOT forward-declare terminal_writestring because terminal.h
-   already declares it (with const char*). */
+#include <stddef.h>
+/* ATA read */
 int ata_read_sector(uint32_t lba, uint8_t *buf);
 
-/* mount state (must be visible to functions below) */
+/* mount state */
 static uint32_t fat_lba_base = 0;
 static int fat_mounted = 0;
+static int fat_type = 0;  // 12, 16 sau 32
 
-/* returnează 1 dacă e montat, 0 altfel */
 int fat_is_mounted(void)
 {
-    return fat_mounted ? 1 : 0;
+    return fat_mounted;
 }
 
-/* returnează LBA-ul montat (valoare utilă numai dacă fat_is_mounted() == 1) */
 uint32_t fat_get_mounted_lba(void)
 {
     return fat_lba_base;
 }
 
-/* Local integer helpers (already in fat.h types) */
+/* Local helpers */
 static inline uint16_t read_u16_le(const uint8_t *b, int off) {
     return (uint16_t)b[off] | ((uint16_t)b[off+1] << 8);
 }
 static inline uint32_t read_u32_le(const uint8_t *b, int off) {
-    return (uint32_t)b[off] | ((uint32_t)b[off+1] << 8) | ((uint32_t)b[off+2] << 16) | ((uint32_t)b[off+3] << 24);
+    return (uint32_t)b[off] | ((uint32_t)b[off+1] << 8) |
+           ((uint32_t)b[off+2] << 16) | ((uint32_t)b[off+3] << 24);
 }
 
-/* u32 -> decimal string */
+/* Implementări manuale pentru memcmp și memcpy (freestanding) */
+static int memcmp_local(const void* s1, const void* s2, size_t n) {
+    const unsigned char* p1 = (const unsigned char*)s1;
+    const unsigned char* p2 = (const unsigned char*)s2;
+    for (size_t i = 0; i < n; i++) {
+        if (p1[i] != p2[i]) return p1[i] - p2[i];
+    }
+    return 0;
+}
+
+static void* memcpy_local(void* dst, const void* src, size_t n) {
+    unsigned char* d = (unsigned char*)dst;
+    const unsigned char* s = (const unsigned char*)src;
+    for (size_t i = 0; i < n; i++) d[i] = s[i];
+    return dst;
+}
+
 static char* u32_to_dec_local(char *out, uint32_t v) {
     char tmp[12]; int ti = 0;
     if (v == 0) { out[0] = '0'; out[1] = '\0'; return out + 1; }
@@ -45,82 +58,118 @@ static char* u32_to_dec_local(char *out, uint32_t v) {
     return out + j;
 }
 
-/* println wrapper */
 static void tprintln(const char *s) {
     terminal_writestring(s);
     terminal_writestring("\n");
 }
 
-/* BPB fields we care about */
+/* BPB fields */
 static uint16_t b_bytes_per_sector;
 static uint8_t  b_sectors_per_cluster;
 static uint16_t b_reserved_sectors;
 static uint8_t  b_fat_count;
-static uint16_t b_root_entry_count;
-static uint16_t b_sectors_per_fat;
+static uint32_t b_sectors_per_fat;
 static uint32_t b_total_sectors;
+static uint32_t b_root_cluster;     // pentru FAT32
 
-/* detectează dacă la LBA există un FAT valid (fără a-l monta) */
+/* Probe: verifică dacă există un volum FAT valid */
 int fat_probe(uint32_t lba)
 {
     uint8_t sector[512];
-
     if (ata_read_sector(lba, sector) != 0)
         return 0;
 
-    uint16_t bytes_per_sector = read_u16_le(sector, 11);
-    uint8_t  sectors_per_cluster = sector[13];
-    uint8_t  fats = sector[16];
-    uint16_t sectors_per_fat = read_u16_le(sector, 22);
+    uint16_t bps = read_u16_le(sector, 11);
+    if (bps != 512) return 0;
 
-    /* verificări minime BPB */
-    if (bytes_per_sector != 512)
-        return 0;
+    uint8_t spc = sector[13];
+    if (spc == 0) return 0;
 
-    if (sectors_per_cluster == 0)
-        return 0;
+    uint8_t fats = sector[16];
+    if (fats == 0) return 0;
 
-    if (fats == 0)
-        return 0;
+    // Verificăm FAT32 la offset 82
+    if (memcmp_local(sector + 82, "FAT32   ", 8) == 0)
+        return 1;
 
-    if (sectors_per_fat == 0)
-        return 0;
+    // Verificăm FAT12/FAT16 la offset 54
+    if (memcmp_local(sector + 54, "FAT12   ", 8) == 0 ||
+        memcmp_local(sector + 54, "FAT16   ", 8) == 0)
+        return 1;
 
-    return 1; /* pare FAT valid */
+    return 0;
 }
 
-
+/* Mount - suportă FAT32 */
 bool fat_mount(uint32_t lba_start)
 {
     uint8_t sector[512];
     if (ata_read_sector(lba_start, sector) != 0) {
-        tprintln("[fat] read failed");
+        tprintln("[fat] read boot sector failed");
         return false;
     }
 
-    b_bytes_per_sector    = read_u16_le(sector, 11);
-    b_sectors_per_cluster = sector[13];
-    b_reserved_sectors    = read_u16_le(sector, 14);
-    b_fat_count           = sector[16];
-    b_root_entry_count    = read_u16_le(sector, 17);
-    b_sectors_per_fat     = read_u16_le(sector, 22);
-
-    uint16_t tot16 = read_u16_le(sector, 19);
-    uint32_t tot32 = read_u32_le(sector, 32);
-    if (tot16 != 0) b_total_sectors = tot16; else b_total_sectors = tot32;
-
+    b_bytes_per_sector = read_u16_le(sector, 11);
     if (b_bytes_per_sector != 512) {
         tprintln("[fat] unsupported sector size");
         return false;
     }
-    if (b_sectors_per_fat == 0 || b_fat_count == 0) {
-        tprintln("[fat] not FAT16 or invalid BPB");
+
+    b_sectors_per_cluster = sector[13];
+    if (b_sectors_per_cluster == 0) {
+        tprintln("[fat] invalid sectors per cluster");
+        return false;
+    }
+
+    b_reserved_sectors = read_u16_le(sector, 14);
+    b_fat_count = sector[16];
+    if (b_fat_count == 0) {
+        tprintln("[fat] invalid FAT count");
+        return false;
+    }
+
+    // Detectare tip FAT
+    if (memcmp_local(sector + 82, "FAT32   ", 8) == 0) {
+        fat_type = 32;
+        b_sectors_per_fat = read_u32_le(sector, 36);
+        b_root_cluster = read_u32_le(sector, 44);
+        b_total_sectors = read_u32_le(sector, 32);
+        if (b_total_sectors == 0) {
+            tprintln("[fat] invalid total sectors (FAT32)");
+            return false;
+        }
+    } else {
+        // FAT12/FAT16
+        if (memcmp_local(sector + 54, "FAT12   ", 8) == 0) fat_type = 12;
+        else if (memcmp_local(sector + 54, "FAT16   ", 8) == 0) fat_type = 16;
+        else {
+            tprintln("[fat] unknown FAT type");
+            return false;
+        }
+
+        b_sectors_per_fat = read_u16_le(sector, 22);
+        uint16_t tot16 = read_u16_le(sector, 19);
+        b_total_sectors = tot16 ? tot16 : read_u32_le(sector, 32);
+        b_root_cluster = 0;
+    }
+
+    if (b_sectors_per_fat == 0) {
+        tprintln("[fat] invalid sectors per FAT");
         return false;
     }
 
     fat_lba_base = lba_start;
     fat_mounted = 1;
-    tprintln("[fat] mounted");
+
+    terminal_writestring("[fat] mounted FAT");
+    char tmp[16];
+    u32_to_dec_local(tmp, fat_type);
+    terminal_writestring(tmp);
+    terminal_writestring(" at LBA ");
+    u32_to_dec_local(tmp, lba_start);
+    terminal_writestring(tmp);
+    terminal_writestring("\n");
+
     return true;
 }
 
@@ -133,38 +182,45 @@ void fat_info(void)
 
     char tmp[64];
 
-    terminal_writestring("[FAT] bytes/sector = ");
+    terminal_writestring("[FAT] Type: FAT");
+    u32_to_dec_local(tmp, fat_type);
+    terminal_writestring(tmp);
+    terminal_writestring("\n");
+
+    terminal_writestring("[FAT] Bytes/sector: ");
     u32_to_dec_local(tmp, b_bytes_per_sector);
     terminal_writestring(tmp);
     terminal_writestring("\n");
 
-    terminal_writestring("[FAT] sectors/cluster = ");
+    terminal_writestring("[FAT] Sectors/cluster: ");
     u32_to_dec_local(tmp, b_sectors_per_cluster);
     terminal_writestring(tmp);
     terminal_writestring("\n");
 
-    terminal_writestring("[FAT] reserved = ");
+    terminal_writestring("[FAT] Reserved sectors: ");
     u32_to_dec_local(tmp, b_reserved_sectors);
     terminal_writestring(tmp);
     terminal_writestring("\n");
 
-    terminal_writestring("[FAT] fats = ");
+    terminal_writestring("[FAT] FAT count: ");
     u32_to_dec_local(tmp, b_fat_count);
     terminal_writestring(tmp);
     terminal_writestring("\n");
 
-    terminal_writestring("[FAT] root entries = ");
-    u32_to_dec_local(tmp, b_root_entry_count);
-    terminal_writestring(tmp);
-    terminal_writestring("\n");
-
-    terminal_writestring("[FAT] sectors/fat = ");
+    terminal_writestring("[FAT] Sectors/FAT: ");
     u32_to_dec_local(tmp, b_sectors_per_fat);
     terminal_writestring(tmp);
     terminal_writestring("\n");
 
-    terminal_writestring("[FAT] total sectors = ");
+    terminal_writestring("[FAT] Total sectors: ");
     u32_to_dec_local(tmp, b_total_sectors);
     terminal_writestring(tmp);
     terminal_writestring("\n");
+
+    if (fat_type == 32) {
+        terminal_writestring("[FAT] Root cluster: ");
+        u32_to_dec_local(tmp, b_root_cluster);
+        terminal_writestring(tmp);
+        terminal_writestring("\n");
+    }
 }
