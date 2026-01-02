@@ -1,3 +1,5 @@
+BITS 32
+
 section .multiboot
 align 4
     dd 0x1BADB002
@@ -10,13 +12,6 @@ extern kernel_main
 
 _start:
     cli
-
-    ; Multiboot ABI:
-    ; EAX = magic
-    ; EBX = multiboot_info*
-
-    push ebx        ; arg2
-    push eax        ; arg1
     call kernel_main
 
 .hang:
