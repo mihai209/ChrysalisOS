@@ -42,8 +42,8 @@
 | ✅     | Write sector          | atenție la corupere |
 | [N]     | Cache simplu          | performanță         |
 | ✅     | Partition table (MBR) | necesar             |
-| 🔲     | FAT12 / FAT16         | ușor                |
-| 🔲     | FAT32                 | mai greu            |
+| ✅     | FAT12 / FAT16         | ușor                |
+| ✅     | FAT32                 | mai greu            |
 | 🔲     | VFS                   | arhitectură curată  |
 
 🟣 NIVEL 4 — Memorie
