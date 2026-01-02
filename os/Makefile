@@ -68,7 +68,9 @@ OBJS = \
 	$(BUILD)/fat_fs.o \
 	$(BUILD)/cmd_fat.o \
 	$(BUILD)/vfs.o \
-	$(BUILD)/ramfs.o
+	$(BUILD)/ramfs.o \
+	$(BUILD)/cmd_vfs.o \
+
 
 # -------------------------
 # TARGETURI PRINCIPALE
@@ -234,6 +236,9 @@ $(BUILD)/vfs.o: kernel/fs/vfs/vfs.c | $(BUILD)
 	$(CXX) $(CXXFLAGS) -m32 -c $< -o $@
 
 $(BUILD)/ramfs.o: kernel/fs/ramfs/ramfs.c | $(BUILD)
+	$(CXX) $(CXXFLAGS) -m32 -c $< -o $@
+
+$(BUILD)/cmd_vfs.o: kernel/cmds/vfs.cpp | $(BUILD)
 	$(CXX) $(CXXFLAGS) -m32 -c $< -o $@
 
 # -------------------------

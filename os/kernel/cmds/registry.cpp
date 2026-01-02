@@ -15,6 +15,7 @@
 #include "help.h"
 #include "disk.h"   // stil vechi: void cmd_disk(const char*)
 #include "fat.h"    // stil nou: int cmd_fat(int, char**)
+#include "vfs.h"
 
 // Definiri manuale freestanding
 #ifndef NULL
@@ -98,6 +99,8 @@ Command command_table[] = {
     { "ticks",    (command_fn)wrap_cmd_ticks },
     { "touch",    (command_fn)wrap_cmd_touch },
     { "uptime",   (command_fn)wrap_cmd_uptime },
+    { "vfs",      (command_fn)cmd_vfs },
+
 };
 
 int command_count = sizeof(command_table) / sizeof(Command);
