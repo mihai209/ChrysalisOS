@@ -27,7 +27,7 @@
 | ✅     | Keymap (US / RO)  | extensibil      |
 | ✅     | Timer abstraction | `sleep(ms)`     |
 | ✅     | Uptime / ticks    | sistem stabil   |
-| ✅      | Delay calibrat    | pentru drivere  |
+| 🔲     | Delay calibrat    | pentru drivere  |
 | 🔲     | Event queue       | bază pentru GUI |
 
 
