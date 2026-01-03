@@ -24,3 +24,8 @@ disk --test --see-raw <lba> <count> — hexdump pentru mai multe sectoare
 
 make build/user_prog.bin
 xxd -i build/user_prog.bin > kernel/user/user_prog.bin.inc
+
+
+nm build/mem/kmalloc_init.o | grep kmalloc_init || true
+# sau, dacă ai pus în kmalloc.o:
+nm build/mem/kmalloc.o | grep kmalloc_init || true
