@@ -65,7 +65,7 @@
 | ------ | --------------------- | ------------- |
 | ✅     | task struct           | baza          |
 | ✅     | context switch        | greu dar fain |
-| 🔲     | scheduler RR          | simplu        |
+| ✅     | scheduler RR          | simplu        |
 | 🔲     | kernel threads        |               |
 | 🔲     | user mode             | ring 3        |
 | 🔲     | syscalls (`int 0x80`) |               |
