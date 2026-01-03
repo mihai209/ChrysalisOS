@@ -92,6 +92,7 @@ Command command_table[] = {
     { "clear",    (command_fn)wrap_cmd_clear },
     { "date",     (command_fn)wrap_cmd_date },
     { "disk",     (command_fn)wrap_cmd_disk },     // stil vechi → wrapper
+    { "exit",     (command_fn)wrap_cmd_shutdown},
     { "fat",      (command_fn)cmd_fat },           // stil nou → direct
     { "help",     (command_fn)wrap_cmd_help },
     { "ls",       (command_fn)wrap_cmd_ls },
