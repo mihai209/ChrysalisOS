@@ -89,7 +89,10 @@ OBJS = \
 	$(BUILD)/copy_user.o \
 	$(BUILD)/vmm.o \
 	$(BUILD)/mm/paging.o \
-	$(BUILD)/load_cr3.o
+	$(BUILD)/load_cr3.o \
+	$(BUILD)/task/task.o \
+    $(BUILD)/task/sched.o \
+    $(BUILD)/arch/switch.o \
 
 # -------------------------
 # TARGETURI PRINCIPALE
@@ -327,6 +330,15 @@ $(BUILD)/mm/paging.o: kernel/mm/paging.c | $(BUILD)
 
 $(BUILD)/load_cr3.o: arch/x86/load_cr3.S | $(BUILD)
 	$(CC) $(CFLAGS) -c $< -o $@
+
+$(BUILD)/task/%.o: kernel/task/%.c
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) -Ikernel/include -c $< -o $@
+
+# compile assembly (AT&T) for i386
+$(BUILD)/arch/%.o: arch/i386/%.S
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) -m32 -ffreestanding -c $< -o $@
 
 # -------------------------
 # LINK

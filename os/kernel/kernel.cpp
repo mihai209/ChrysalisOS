@@ -1,4 +1,14 @@
 // kernel/kernel.cpp
+// Updated: defensive task integration + panic fallback (tasks disabled by default)
+//
+// Notes:
+//  - TASKS_ENABLED = 0 by default to avoid bootloops caused by incomplete context-switch.
+//  - To re-enable: set TASKS_ENABLED to 1, ensure you have a correct arch/i386/switch.S
+//    that saves/restores full CPU context (pushad/popad) and returns to a valid stack.
+//  - Triple faults cannot be caught — avoid them by not switching into invalid stacks.
+//  - For harder safety, implement a double-fault handler in your IDT that calls panic()
+//    so many kernel faults will show a panic screen instead of resulting in a triple fault.
+
 #include "types.h"
 
 #include "terminal.h"
@@ -29,7 +39,14 @@
 #include "panic_sys.h"
 #include "panic.h"
 
-/* Dacă shell.h nu declară shell_poll_input(), avem o declarație locală ca fallback */
+// ===== TASK SUBSYSTEM =====
+// Include the task and scheduler headers for the cooperative scheduler.
+// These headers are C-compatible (extern "C" guards inside), so they can be
+// included directly from C++.
+#include "task/task.h"
+#include "task/sched.h"
+
+/* If shell.h doesn't declare shell_poll_input(), provide a local fallback */
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -42,21 +59,26 @@ extern "C" {
     void kmalloc_init(void);
 }
 
-/* buddy init wrapper that binds buddy to the heap region (defined in linker.ld) */
+/* Buddy allocator wrapper that hooks the buddy allocator to the heap region
+   defined by the linker script (linker.ld) */
 extern "C" void buddy_init_from_heap(void);
 
-/* Multiboot magic constant (classic Multiboot 1) */
+/* Classic Multiboot 1 magic constant */
 #define MULTIBOOT_MAGIC 0x2BADB002u
 
-/* Debug/test flag:
-   - dacă rămâne definit, kernel va încerca testul grafic, DAR doar dacă framebufferul e prezent și suficient.
-*/
-#define VGA_TEST 0 // la dracu cu video suport
+/* Debug/test flag: set to 1 to exercise framebuffer logic (if available) */
+#define VGA_TEST 0
 
-/* Minimal multiboot info (only fields we read) */
+/* IMPORTANT: by default we KEEP TASKING DISABLED to avoid bootloops.
+   Set to 1 only after you're sure switch_to is correct and you have tested
+   context switching in a controlled environment.
+*/
+#define TASKS_ENABLED 1
+
+/* Minimal Multiboot structure (only the fields we use) */
 typedef struct {
     uint32_t flags;
-    /* ... many fields omitted ... */
+    /* many fields omitted intentionally */
     uint64_t framebuffer_addr;
     uint32_t framebuffer_pitch;
     uint32_t framebuffer_width;
@@ -64,12 +86,17 @@ typedef struct {
     uint8_t  framebuffer_bpp;
 } multiboot_info_t;
 
+/* Try to initialize the framebuffer if GRUB provided a framebuffer info block.
+   This is minimal and defensive: it only touches VGA subsystem if the multiboot
+   info reports a valid framebuffer. */
 static void try_init_framebuffer_from_multiboot(uint32_t magic, uint32_t addr)
 {
     if (magic != MULTIBOOT_MAGIC) return;
     if (addr == 0) return;
 
     multiboot_info_t* mbi = (multiboot_info_t*)(uintptr_t)addr;
+
+    /* Multiboot spec: bit 12 = framebuffer info present */
     if (mbi->flags & (1 << 12)) {
         void* fb_addr = (void*)(uintptr_t)mbi->framebuffer_addr;
         uint32_t fb_width = mbi->framebuffer_width;
@@ -83,13 +110,62 @@ static void try_init_framebuffer_from_multiboot(uint32_t magic, uint32_t addr)
     }
 }
 
+// -----------------------------
+// Example tasks (cooperative)
+// -----------------------------
+// These demonstrate the cooperative API: tasks MUST call task_yield() so the
+// scheduler can switch. If a task never yields, it will monopolize the CPU.
+//
+// NOTE: With TASKS_ENABLED==0 these are present but not started.
+void task_a(void)
+{
+    for (;;) {
+        terminal_writestring("[taskA] Task A running\n");
+        for (volatile int i = 0; i < 1000000; ++i) ;
+        task_yield(); /* yield to scheduler */
+    }
+}
+
+void task_b(void)
+{
+    for (;;) {
+        terminal_writestring("[taskB] Task B running\n");
+        for (volatile int i = 0; i < 1000000; ++i) ;
+        task_yield();
+    }
+}
+
+// -----------------------------
+// Helper: panic on kernel-detected fatal error
+// -----------------------------
+// Use this function for early fatal errors so the kernel shows the panic screen
+// instead of continuing in a corrupted state. Note: this cannot catch hardware
+// triple-faults that already reset the CPU.
+static void panic_if_fatal(const char *msg)
+{
+    // try to print something sensible to both terminal and serial
+    if (msg) {
+        terminal_writestring("[PANIC] ");
+        terminal_writestring(msg);
+        terminal_writestring("\n");
+        serial_write_string("[PANIC] ");
+        serial_write_string(msg);
+        serial_write_string("\r\n");
+    }
+    // register a minimal panic state and halt (panic() should not return)
+    panic("Kernel detected fatal error; halting.");
+}
+
+// -----------------------------
+// kernel_main - entry point
+// -----------------------------
 extern "C" void kernel_main(uint32_t magic, uint32_t addr) {
 
-    /* try to pick up framebuffer info if GRUB provided it */
+    // 1) Early: pick up framebuffer info (if GRUB gave it)
     try_init_framebuffer_from_multiboot(magic, addr);
 
 #if VGA_TEST
-    /* Initialize driver (does NOT call BIOS). */
+    /* Simple VGA test (framebuffer mode); this does not use BIOS. */
     vga_init();
 
     if (vga_has_framebuffer() && vga_get_width() >= 320 && vga_get_height() >= 200) {
@@ -111,23 +187,23 @@ extern "C" void kernel_main(uint32_t magic, uint32_t addr) {
     }
 #endif
 
-    /* Normal init path (text mode, shell, etc) */
+    // 2) CPU/interrupt basic setup: GDT -> IDT -> PIC. Order matters.
     gdt_init();
     idt_init();
     pic_remap();
+
+    // 3) Terminal (text-mode) initialization
     terminal_init();
 
+    // 4) Optional boot logo
     bootlogo_show();
 
-    /* NOTE: kmalloc_init() must run *after* heap + buddy are initialized.
-       It was moved later in the boot sequence (after heap_init and buddy_init_from_heap).
-    */
-
+    // 5) Filesystem core: initialize and mount a minimal root
     fs_init();
-
-    /* =======================
-       VFS INIT (AICI)
-       ======================= */
+    if (!ramfs_root()) {
+        // ramfs_root failure is fatal for our simple early boot; panic instead of continuing
+        panic_if_fatal("ramfs_root() returned NULL");
+    }
     vfs_mount("/", ramfs_root());
 
     vnode_t* v = vfs_resolve("/");
@@ -136,32 +212,40 @@ extern "C" void kernel_main(uint32_t magic, uint32_t addr) {
     else
         terminal_writestring("[vfs] mount FAILED\n");
 
+    // 6) User subsystem (if present)
     user_init();
 
+    // 7) Shell: text UI
     shell_init();
 
-    /* initialize physical memory manager (PMM) */
+    // 8) Physical Memory Manager (PMM)
     pmm_init((void*)addr);
 
+    // Sanity check PMM (if you have functions for total frames, check them here)
+    // If pmm_init failed in a way you can detect, call panic_if_fatal()
+
+    // 9) Input drivers: keyboard buffer + raw keyboard driver
     kbd_buffer_init();
     keyboard_init();
 
-    /* Initialize timer abstraction (installs PIT + IRQ handler).
-       NOTE: interrupts are still disabled here — we will enable them (sti)
-       only after all IRQ handlers (keyboard, timer, etc.) are installed. */
+    // 10) Timer abstraction (PIT) - install handlers but keep interrupts disabled
     timer_init(100);
 
+    // 11) Other drivers and serial for debug/log
     audio_init();
     mouse_init();
 
     serial_init();
     serial_write_string("=== Chrysalis OS serial online ===\r\n");
+
+    // 12) Event queue for event-driven design
     event_queue_init();
 
-    /* --- KEY CHANGE: enable interrupts NOW (after IRQ handlers installed) --- */
+    // 13) Now enable interrupts: only do this after driver IRQ handlers are installed.
+    // Enabling earlier risks races where an ISR runs before supporting state is ready.
     asm volatile("sti");
 
-    /* Now it's safe to use sleep() and expect hardware IRQs (PIT, keyboard) to work. */
+    // 14) Demonstration of sleep / IRQ-driven timers working
     terminal_writestring("Sleeping 1 second...\n");
     sleep(1000);
     terminal_writestring("Done!\n");
@@ -173,100 +257,148 @@ extern "C" void kernel_main(uint32_t magic, uint32_t addr) {
 
     terminal_writestring("\nSystem ready.\n> ");
 
+    // 15) RTC/time/ATA
     rtc_print();
-
     time_init();
     time_set_timezone(2);
-
     datetime t;
     time_get_local(&t);
     ata_init();
 
+    // 16) PMM quick test
     uint32_t frame1 = pmm_alloc_frame();
     uint32_t frame2 = pmm_alloc_frame();
-
     terminal_printf("PMM: %x %x\n", frame1, frame2);
-
+    if (frame1 == 0 || frame2 == 0) {
+        // allocation failure — panic instead of continuing in degraded state
+        panic_if_fatal("pmm_alloc_frame returned 0 (allocation failed)");
+    }
     pmm_free_frame(frame1);
     pmm_free_frame(frame2);
 
-    //paging_init(PAGING_20_MB);
-    // paging_init(PAGING_40_MB);
-    // paging_init(PAGING_60_MB);
-    // paging_init(PAGING_80_MB);
-    // paging_init(PAGING_100_MB);
-     paging_init(PAGING_120_MB);
+    // 17) Paging: choose page area size per your roadmap
+    paging_init(PAGING_120_MB);
+    terminal_printf("Paging OK\n");
 
-     terminal_printf("Paging OK\n");
-
+    // 18) Heap + buddy allocator + kmalloc
     extern uint8_t __heap_start;
     extern uint8_t __heap_end;
 
-    /* initialize kernel heap region (linker.ld sets __heap_start/__heap_end) */
-    heap_init(&__heap_start, (size_t)(&__heap_end - &__heap_start));
+    // defensive check: heap range must make sense
+    if (&__heap_end <= &__heap_start) {
+        panic_if_fatal("Heap region invalid (heap_end <= heap_start)");
+    }
 
-    /* bind buddy allocator to heap region and init kmalloc/slab */
+    heap_init(&__heap_start, (size_t)(&__heap_end - &__heap_start));
     buddy_init_from_heap();
     kmalloc_init();
 
-    /* Heap test: folosiți nume diferite față de frame1/frame2 */
+    // 19) Heap test (defensive frees)
     void* heap_a = kmalloc(64);
     void* heap_b = kmalloc_aligned(100, 64);
+    if (!heap_a || !heap_b) {
+        // kmalloc failure early indicates severe problem: panic
+        panic_if_fatal("kmalloc/kmalloc_aligned failed during early heap test");
+    }
+    kfree(heap_a);
+    kfree(heap_b);
 
-    /* Defensive: verificări simple înainte de free */
-    if (heap_a) kfree(heap_a);
-    if (heap_b) kfree(heap_b);
-
-    /* ===== SAFE: register system info for panic screen =====
-       - extragem total RAM din Multiboot (dacă GRUB a furnizat mem_lower/mem_upper)
-       - free_kb rămâne 0 aici (înlocuiește cu date reale din PMM mai târziu dacă vrei)
-       - CPU string îl obţinem din panic_sys (detectare CPUID internă) dacă nu ai setat altceva
-       - uptime rămâne 0 (înlocuieşte cu variabila ta de uptime dacă ai)
-    */
-
+    // 20) Register system info for panic screen (use safe defaults)
     uint32_t total_kb = 0;
     uint32_t free_kb  = 0;
     uint32_t uptime_s = 0;
 
-    /* Try to read mem_lower/mem_upper from multiboot info if present */
     if (magic == MULTIBOOT_MAGIC && addr != 0) {
-        /* minimal struct for mem_lower/mem_upper (Multiboot 1) */
         struct mb_basic {
             uint32_t flags;
             uint32_t mem_lower;
             uint32_t mem_upper;
-            /* rest ignored */
         };
-
         struct mb_basic* mb = (struct mb_basic*)(uintptr_t)addr;
         if (mb && (mb->flags & 0x1)) {
-            /* mem_lower and mem_upper are given in KB by Multiboot 1 spec */
             total_kb = mb->mem_lower + mb->mem_upper;
         }
     }
 
-    /* Optional: if your PMM exposes total/free frame counts, compute free_kb here.
-       Example (uncomment and adapt if you have pmm_get_free_frame_count()), but
-       leave commented out to avoid references to undefined symbols:
-
-       // uint32_t free_frames = pmm_get_free_frame_count();
-       // free_kb = free_frames * 4; // if frame size is 4 KB
-       // uint32_t total_frames = pmm_get_total_frame_count();
-       // total_kb = total_frames * 4;
-    */
-
-    /* CPU string: ask panic_sys for detected CPU (will use CPUID if needed) */
     const char *cpu_detected = panic_sys_cpu_str();
-
-    /* Register values (safe even if zero/unknown) */
     panic_sys_register_memory_kb(total_kb, free_kb);
-    panic_sys_register_storage_kb(0, 0); /* replace with real storage values if available */
+    panic_sys_register_storage_kb(0, 0); // populate if you have storage info
     panic_sys_register_cpu_str(cpu_detected);
     panic_sys_register_uptime_seconds(uptime_s);
 
+    // -----------------------------
+    // TASKS: Setup cooperative scheduling (DEFENSIVE)
+    // -----------------------------
+    // Default behaviour: tasking is disabled (TASKS_ENABLED == 0).
+    // If you change TASKS_ENABLED to 1, you accept responsibility: you must have
+    // a correct switch_to that saves/restores all necessary registers and uses
+    // dedicated stacks for tasks.
+#if TASKS_ENABLED
+    terminal_writestring("[tasks] TASKS_ENABLED=1 -> initializing tasks (experimental)\n");
 
+    // Capture main into the task subsystem and create demo tasks.
+    // WARNING: do not call task_yield() until you are sure switch_to is safe.
+    task_init();
+
+    task_t *ta = task_create("taskA", task_a);
+    if (!ta) {
+        terminal_writestring("[tasks] task_create(taskA) failed\n");
+        panic_if_fatal("task_create(taskA) failed");
+    }
+
+    task_t *tb = task_create("taskB", task_b);
+    if (!tb) {
+        terminal_writestring("[tasks] task_create(taskB) failed\n");
+        panic_if_fatal("task_create(taskB) failed");
+    }
+
+    // We do NOT automatically call task_yield() here. The developer should
+    // explicitly call task_yield() once they ensured switch_to works, or add
+    // a tested switch.S that handles all register/state saving (including EFLAGS).
+    terminal_writestring("[tasks] tasks created. Call task_yield() manually to start scheduling.\n");
+#else
+    terminal_writestring("[tasks] TASKS_ENABLED=0 (safe default). To enable tasks, set TASKS_ENABLED=1 in kernel/kernel.cpp and ensure switch_to is correct.\n");
+#endif
+
+    // 21) Main loop: shell polling + halt (no unsafe yields)
+    // If you want the shell to be preempted by tasks, move shell into its own
+    // task and enable TASKS_ENABLED after implementing a safe switch_to.
     while (1) {
-        shell_poll_input();
-        asm volatile("hlt");
+        shell_poll_input();   // non-blocking poll for shell input
+#if TASKS_ENABLED
+        // If you truly want automated scheduling when TASKS_ENABLED==1, replace
+        // the following line with task_yield() once you verified switch_to and
+        // have tested on a VM snapshot (so you can revert on triple fault).
+        // task_yield();
+#endif
+        asm volatile("hlt"); // reduce power until next interrupt
     }
 }
+
+// =========================
+// Notes for modders (concise checklist)
+// =========================
+//
+// - To get real preemptive scheduling:
+//
+//   * Implement a robust arch/i386/switch.S that saves/restores full context
+//     (pushad / push eflags / save cs/ss if necessary). The simple `movl %esp, (prev)`
+//     + `movl (next), %esp` + `ret` technique is fragile for complex kernels.
+//   * In the PIT IRQ handler, save the CPU context and call schedule().
+//   * Add a safe trampoline for user-mode tasks (iret frame).
+//
+// - To avoid triple-faults and display panics instead:
+//
+//   * Install a double-fault handler in the IDT that calls a panic handler which
+//     prints debug info and halts (or drops to a safe console). If a double-fault
+//     handler is itself invalid, the CPU triple-faults and resets (not catchable).
+//
+// - Diagnostics tips:
+//
+//   * Keep serial outputs in early boot — easiest way to see what failed.
+//   * When enabling TASKS_ENABLED, run inside a VM snapshot so you can revert
+//     quickly if a triple-fault occurs.
+//   * Create a small `switch_test` routine that exercises switching in a controlled
+//     environment (no interrupts, tiny stacks), then expand to IRQ-driven scheduling.
+//
+// End of file
