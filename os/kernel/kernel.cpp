@@ -24,6 +24,8 @@
 #include "memory/pmm.h"
 #include "paging.h"
 #include "user/user.h"
+#include "mem/kmalloc.h"
+
 
 
 //#include <cstdio.h>
@@ -76,6 +78,8 @@ static void try_init_framebuffer_from_multiboot(uint32_t magic, uint32_t addr)
 }
 
 extern "C" void kernel_main(uint32_t magic, uint32_t addr) {
+
+    
 
     /* try to pick up framebuffer info if GRUB provided it */
     try_init_framebuffer_from_multiboot(magic, addr);
@@ -173,15 +177,15 @@ extern "C" void kernel_main(uint32_t magic, uint32_t addr) {
     ata_init();
 
 
-    uint32_t a = pmm_alloc_frame();
-    uint32_t b = pmm_alloc_frame();
+    uint32_t frame1 = pmm_alloc_frame();
+    uint32_t frame2 = pmm_alloc_frame();
 
-    terminal_printf("PMM: %x %x\n", a, b);
+    terminal_printf("PMM: %x %x\n", frame1, frame2);
 
 
 
-    pmm_free_frame(a);
-    pmm_free_frame(b);
+    pmm_free_frame(frame1);
+    pmm_free_frame(frame2);
 
     //paging_init(PAGING_20_MB);
     // paging_init(PAGING_40_MB);
@@ -192,6 +196,19 @@ extern "C" void kernel_main(uint32_t magic, uint32_t addr) {
 
      terminal_printf("Paging OK\n");
 
+
+    extern uint8_t __heap_start;
+    extern uint8_t __heap_end;
+
+    heap_init(&__heap_start, (size_t)(&__heap_end - &__heap_start));
+
+    /* Heap test: folosiți nume diferite față de frame1/frame2 */
+    void* heap_a = kmalloc(64);
+    void* heap_b = kmalloc_aligned(100, 64);
+
+    /* Defensive: verificări simple înainte de free */
+    if (heap_a) kfree(heap_a);
+    if (heap_b) kfree(heap_b);
 
     while (1) {
         shell_poll_input();

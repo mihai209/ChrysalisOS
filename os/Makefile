@@ -75,6 +75,7 @@ OBJS = \
 	$(BUILD)/paging.o \
 	$(BUILD)/user.o \
 	$(BUILD)/cmd_login.o \
+	$(BUILD)/mem/kmalloc.o \
 
 
 # -------------------------
@@ -272,6 +273,9 @@ $(BUILD)/paging.o: kernel/paging.c kernel/paging.h
 	@mkdir -p $(dir $@)
 	cc -m32 $(CXXFLAGS) -c $< -o $@
 
+$(BUILD)/mem/%.o: kernel/mem/%.c
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) -Ikernel/include -ffreestanding -m32 -c $< -o $@
 
 
 
