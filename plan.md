@@ -56,7 +56,7 @@
 | ✅     | Virtual Memory          | izolare       |
 | ✅     | Heap kernel (`kmalloc`) | obligatoriu   |
 | ✅     | slab / buddy            | optimizare    |
-| 🔲     | user memory isolation   | securitate    |
+| ✅     | user memory isolation   | securitate    |
 
 🟠 NIVEL 5 — Procese & multitasking
 (când devine „OS adevărat”)

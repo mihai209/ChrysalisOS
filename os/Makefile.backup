@@ -4,7 +4,7 @@ AS  = nasm
 LD  = ld
 
 # flags comune
-COMMON_FLAGS = -ffreestanding -O2 -Wall -Wextra -Ikernel/include -m32
+COMMON_FLAGS = -ffreestanding -O2 -Wall -Wextra -Ikernel/include
 
 # C / C++
 CFLAGS   = $(COMMON_FLAGS)
@@ -83,13 +83,15 @@ OBJS = \
 	$(BUILD)/panic.o \
 	$(BUILD)/cmd_crash.o \
 	$(BUILD)/panic_sys.o \
-	$(BUILD)/cmd_mem.o \
+    $(BUILD)/cmd_mem.o \
 	$(BUILD)/address_space.o \
-	$(BUILD)/user_mem.o \
-	$(BUILD)/copy_user.o \
+    $(BUILD)/user_mem.o \
+    $(BUILD)/copy_user.o \
 	$(BUILD)/vmm.o \
-	$(BUILD)/mm/paging.o \
-	$(BUILD)/load_cr3.o
+	$(BUILD)/paging1.o
+
+
+
 
 # -------------------------
 # TARGETURI PRINCIPALE
@@ -120,159 +122,159 @@ $(BUILD)/interrupts.o: kernel/interrupts/interrupts.asm | $(BUILD)
 # -------------------------
 
 $(BUILD)/kernel.o: kernel/kernel.cpp | $(BUILD)
-	$(CXX) $(CXXFLAGS) -c $< -o $@
+	$(CXX) $(CXXFLAGS) -m32 -c $< -o $@
 
 $(BUILD)/idt.o: kernel/arch/i386/idt.cpp | $(BUILD)
-	$(CXX) $(CXXFLAGS) -c $< -o $@
+	$(CXX) $(CXXFLAGS) -m32 -c $< -o $@
 
 $(BUILD)/irq.o: kernel/interrupts/irq.cpp | $(BUILD)
-	$(CXX) $(CXXFLAGS) -c $< -o $@
+	$(CXX) $(CXXFLAGS) -m32 -c $< -o $@
 
 $(BUILD)/keyboard.o: kernel/drivers/keyboard.cpp | $(BUILD)
-	$(CXX) $(CXXFLAGS) -c $< -o $@
+	$(CXX) $(CXXFLAGS) -m32 -c $< -o $@
 
 $(BUILD)/terminal.o: kernel/terminal.cpp | $(BUILD)
-	$(CXX) $(CXXFLAGS) -c $< -o $@
+	$(CXX) $(CXXFLAGS) -m32 -c $< -o $@
 
 $(BUILD)/pic.o: kernel/drivers/pic.cpp | $(BUILD)
-	$(CXX) $(CXXFLAGS) -c $< -o $@
+	$(CXX) $(CXXFLAGS) -m32 -c $< -o $@
 
 $(BUILD)/gdt.o: kernel/arch/i386/gdt.cpp | $(BUILD)
-	$(CXX) $(CXXFLAGS) -c $< -o $@
+	$(CXX) $(CXXFLAGS) -m32 -c $< -o $@
 
 $(BUILD)/isr.o: kernel/interrupts/isr.cpp | $(BUILD)
-	$(CXX) $(CXXFLAGS) -c $< -o $@
+	$(CXX) $(CXXFLAGS) -m32 -c $< -o $@
 
 $(BUILD)/shell.o: kernel/shell/shell.cpp | $(BUILD)
-	$(CXX) $(CXXFLAGS) -c $< -o $@
+	$(CXX) $(CXXFLAGS) -m32 -c $< -o $@
 
 $(BUILD)/cmd_clear.o: kernel/cmds/clear.cpp | $(BUILD)
-	$(CXX) $(CXXFLAGS) -c $< -o $@
+	$(CXX) $(CXXFLAGS) -m32 -c $< -o $@
 
 $(BUILD)/cmd_reboot.o: kernel/cmds/reboot.cpp | $(BUILD)
-	$(CXX) $(CXXFLAGS) -c $< -o $@
+	$(CXX) $(CXXFLAGS) -m32 -c $< -o $@
 
 $(BUILD)/cmd_shutdown.o: kernel/cmds/shutdown.cpp | $(BUILD)
-	$(CXX) $(CXXFLAGS) -c $< -o $@
+	$(CXX) $(CXXFLAGS) -m32 -c $< -o $@
 
 $(BUILD)/cmd_registry.o: kernel/cmds/registry.cpp | $(BUILD)
-	$(CXX) $(CXXFLAGS) -c $< -o $@
+	$(CXX) $(CXXFLAGS) -m32 -c $< -o $@
 
 $(BUILD)/fs.o: kernel/fs/fs.cpp | $(BUILD)
-	$(CXX) $(CXXFLAGS) -c $< -o $@
+	$(CXX) $(CXXFLAGS) -m32 -c $< -o $@
 
 $(BUILD)/cmd_ls.o: kernel/cmds/ls.cpp | $(BUILD)
-	$(CXX) $(CXXFLAGS) -c $< -o $@
+	$(CXX) $(CXXFLAGS) -m32 -c $< -o $@
 
 $(BUILD)/cmd_cat.o: kernel/cmds/cat.cpp | $(BUILD)
-	$(CXX) $(CXXFLAGS) -c $< -o $@
+	$(CXX) $(CXXFLAGS) -m32 -c $< -o $@
 
 $(BUILD)/cmd_touch.o: kernel/cmds/touch.cpp | $(BUILD)
-	$(CXX) $(CXXFLAGS) -c $< -o $@
+	$(CXX) $(CXXFLAGS) -m32 -c $< -o $@
 
 $(BUILD)/bootlogo.o: kernel/bootlogo/bootlogo.cpp | $(BUILD)
-	$(CXX) $(CXXFLAGS) -c $< -o $@
+	$(CXX) $(CXXFLAGS) -m32 -c $< -o $@
 
 $(BUILD)/pit.o: kernel/drivers/pit.cpp | $(BUILD)
-	$(CXX) $(CXXFLAGS) -c $< -o $@
+	$(CXX) $(CXXFLAGS) -m32 -c $< -o $@
 
 $(BUILD)/load.o: kernel/debug/load.cpp | $(BUILD)
-	$(CXX) $(CXXFLAGS) -c $< -o $@
+	$(CXX) $(CXXFLAGS) -m32 -c $< -o $@
 
 $(BUILD)/serial.o: kernel/drivers/serial.cpp | $(BUILD)
-	$(CXX) $(CXXFLAGS) -c $< -o $@
+	$(CXX) $(CXXFLAGS) -m32 -c $< -o $@
 
 $(BUILD)/rtc.o: kernel/drivers/rtc.cpp | $(BUILD)
-	$(CXX) $(CXXFLAGS) -c $< -o $@
+	$(CXX) $(CXXFLAGS) -m32 -c $< -o $@
 
 $(BUILD)/clock.o: kernel/time/clock.cpp | $(BUILD)
-	$(CXX) $(CXXFLAGS) -c $< -o $@
+	$(CXX) $(CXXFLAGS) -m32 -c $< -o $@
 
 $(BUILD)/cmd_date.o: kernel/cmds/date.cpp | $(BUILD)
-	$(CXX) $(CXXFLAGS) -c $< -o $@
+	$(CXX) $(CXXFLAGS) -m32 -c $< -o $@
 
 $(BUILD)/speaker.o: kernel/drivers/speaker.cpp | $(BUILD)
-	$(CXX) $(CXXFLAGS) -c $< -o $@
+	$(CXX) $(CXXFLAGS) -m32 -c $< -o $@
 
 $(BUILD)/cmd_beep.o: kernel/cmds/beep.cpp | $(BUILD)
-	$(CXX) $(CXXFLAGS) -c $< -o $@
+	$(CXX) $(CXXFLAGS) -m32 -c $< -o $@
 
 $(BUILD)/audio.o: kernel/drivers/audio/audio.cpp | $(BUILD)
-	$(CXX) $(CXXFLAGS) -c $< -o $@
+	$(CXX) $(CXXFLAGS) -m32 -c $< -o $@
 
 $(BUILD)/shortcuts.o: kernel/shortcuts/shortcuts.cpp | $(BUILD)
-	$(CXX) $(CXXFLAGS) -c $< -o $@
+	$(CXX) $(CXXFLAGS) -m32 -c $< -o $@
 
 $(BUILD)/string.o: kernel/string.cpp | $(BUILD)
-	$(CXX) $(CXXFLAGS) -c $< -o $@
+	$(CXX) $(CXXFLAGS) -m32 -c $< -o $@
 
 $(BUILD)/cmd_play.o: kernel/cmds/play.cpp | $(BUILD)
-	$(CXX) $(CXXFLAGS) -c $< -o $@
+	$(CXX) $(CXXFLAGS) -m32 -c $< -o $@
 
 $(BUILD)/mlb.o: kernel/mlb/mlb.cpp | $(BUILD)
-	$(CXX) $(CXXFLAGS) -c $< -o $@
+	$(CXX) $(CXXFLAGS) -m32 -c $< -o $@
 
 $(BUILD)/mouse.o: kernel/drivers/mouse.cpp | $(BUILD)
-	$(CXX) $(CXXFLAGS) -c $< -o $@
+	$(CXX) $(CXXFLAGS) -m32 -c $< -o $@
 
 $(BUILD)/keyboard_buffer.o: kernel/input/keyboard_buffer.cpp | $(BUILD)
-	$(CXX) $(CXXFLAGS) -c $< -o $@
+	$(CXX) $(CXXFLAGS) -m32 -c $< -o $@
 
 $(BUILD)/keymap.o: kernel/keyboard/keymap.c | $(BUILD)
-	$(CC) $(CFLAGS) -c $< -o $@
+	$(CXX) $(CXXFLAGS) -m32 -c $< -o $@
 
 $(BUILD)/keymap_us.o: kernel/keyboard/keymap_us.c | $(BUILD)
-	$(CC) $(CFLAGS) -c $< -o $@
+	$(CXX) $(CXXFLAGS) -m32 -c $< -o $@
 
 $(BUILD)/keymap_ro.o: kernel/keyboard/keymap_ro.c | $(BUILD)
-	$(CC) $(CFLAGS) -c $< -o $@
+	$(CXX) $(CXXFLAGS) -m32 -c $< -o $@
 
 $(BUILD)/vga.o: kernel/video/vga.c | $(BUILD)
-	$(CC) $(CFLAGS) -c $< -o $@
+	$(CXX) $(CXXFLAGS) -m32 -c $< -o $@
 
 $(BUILD)/timer.o: kernel/time/timer.c | $(BUILD)
-	$(CC) $(CFLAGS) -c $< -o $@
+	$(CXX) $(CXXFLAGS) -m32 -c $< -o $@
 
 $(BUILD)/cmd_uptime.o: kernel/cmds/uptime.cpp | $(BUILD)
-	$(CXX) $(CXXFLAGS) -c $< -o $@
+	$(CXX) $(CXXFLAGS) -m32 -c $< -o $@
 
 $(BUILD)/cmd_ticks.o: kernel/cmds/ticks.cpp | $(BUILD)
-	$(CXX) $(CXXFLAGS) -c $< -o $@
+	$(CXX) $(CXXFLAGS) -m32 -c $< -o $@
 
 $(BUILD)/cmd_help.o: kernel/cmds/help.cpp | $(BUILD)
-	$(CXX) $(CXXFLAGS) -c $< -o $@
+	$(CXX) $(CXXFLAGS) -m32 -c $< -o $@
 
 $(BUILD)/event_queue.o: kernel/events/event_queue.c | $(BUILD)
-	$(CC) $(CFLAGS) -c $< -o $@
+	$(CXX) $(CXXFLAGS) -m32 -c $< -o $@
 
 $(BUILD)/disk.o: kernel/cmds/disk.cpp | $(BUILD)
-	$(CXX) $(CXXFLAGS) -c $< -o $@
+	$(CXX) $(CXXFLAGS) -m32 -c $< -o $@
 
 $(BUILD)/cmd_fat.o: kernel/cmds/fat.cpp | $(BUILD)
-	$(CXX) $(CXXFLAGS) -c $< -o $@
+	$(CXX) $(CXXFLAGS) -m32 -c $< -o $@
 
 $(BUILD)/vfs.o: kernel/fs/vfs/vfs.c | $(BUILD)
-	$(CC) $(CFLAGS) -c $< -o $@
+	$(CXX) $(CXXFLAGS) -m32 -c $< -o $@
 
 $(BUILD)/ramfs.o: kernel/fs/ramfs/ramfs.c | $(BUILD)
-	$(CC) $(CFLAGS) -c $< -o $@
+	$(CXX) $(CXXFLAGS) -m32 -c $< -o $@
 
 $(BUILD)/cmd_vfs.o: kernel/cmds/vfs.cpp | $(BUILD)
-	$(CXX) $(CXXFLAGS) -c $< -o $@
+	$(CXX) $(CXXFLAGS) -m32 -c $< -o $@
 
 $(BUILD)/user.o: kernel/user/user.cpp | $(BUILD)
-	$(CXX) $(CXXFLAGS) -c $< -o $@
+	$(CXX) $(CXXFLAGS) -m32 -c $< -o $@
 
 $(BUILD)/cmd_login.o: kernel/cmds/login.cpp | $(BUILD)
-	$(CXX) $(CXXFLAGS) -c $< -o $@
+	$(CXX) $(CXXFLAGS) -m32 -c $< -o $@
 
 $(BUILD)/panic.o: kernel/panic.cpp kernel/panic.h | $(BUILD)
-	$(CXX) $(CXXFLAGS) -c $< -o $@
+	$(CXX) $(CXXFLAGS) -m32 -c $< -o $@
 
 $(BUILD)/cmd_crash.o: kernel/cmds/crash.cpp kernel/cmds/crash.h | $(BUILD)
-	$(CXX) $(CXXFLAGS) -c $< -o $@
+	$(CXX) $(CXXFLAGS) -m32 -c $< -o $@
 
-$(BUILD)/vmm.o: kernel/mm/vmm.c | $(BUILD)
+$(BUILD)/vmm.o: kernel/mm/vmm.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
 # -------------------------
@@ -280,60 +282,58 @@ $(BUILD)/vmm.o: kernel/mm/vmm.c | $(BUILD)
 # -------------------------
 
 $(BUILD)/ata.o: kernel/storage/ata.c | $(BUILD)
-	$(CC) $(CFLAGS) -c $< -o $@
+	$(CC) $(CFLAGS) -m32 -c $< -o $@
 
 $(BUILD)/fat_fs.o: kernel/fs/fat/fat.c | $(BUILD)
-	$(CC) $(CFLAGS) -c $< -o $@
+	$(CC) $(CFLAGS) -m32 -c $< -o $@
 
-$(BUILD)/pmm.o: kernel/memory/pmm.c | $(BUILD)
-	$(CC) $(CFLAGS) -c $< -o $@
+$(BUILD)/pmm.o: kernel/memory/pmm.c
+	$(CC) -m32 $(CFLAGS) -c $< -o $@
 
-$(BUILD)/cmd_pmm.o: kernel/cmds/pmm.cpp | $(BUILD)
-	$(CXX) $(CXXFLAGS) -c $< -o $@
+$(BUILD)/cmd_pmm.o: kernel/cmds/pmm.cpp
+	$(CXX) -m32 $(CXXFLAGS) -c $< -o $@
 
-$(BUILD)/paging.o: kernel/paging.c kernel/paging.h | $(BUILD)
+$(BUILD)/paging.o: kernel/paging.c kernel/paging.h
 	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) -c $< -o $@
+	cc -m32 $(CXXFLAGS) -c $< -o $@
 
-$(BUILD)/mem/%.o: kernel/mem/%.c | $(BUILD)
+$(BUILD)/mem/%.o: kernel/mem/%.c
 	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) -Ikernel/include -ffreestanding -c $< -o $@
+	$(CC) $(CFLAGS) -Ikernel/include -ffreestanding -m32 -c $< -o $@
 
 $(BUILD)/panic_sys.o: kernel/panic_sys.c | $(BUILD)
-	$(CC) $(CFLAGS) -c $< -o $@
+	$(CC) $(CFLAGS) -m32 -c $< -o $@
 
 
 build/user_prog.bin: kernel/user/user_prog.S
 	$(AS) -f bin $< -o $@
 
 $(BUILD)/user_blob.o: kernel/user/user_blob.c build/user_prog.bin | $(BUILD)
-	$(CXX) $(CXXFLAGS) -c $< -o $@
+	$(CXX) $(CXXFLAGS) -m32 -c $< -o $@
 
 $(BUILD)/cmd_mem.o: kernel/cmds/mem.cpp | $(BUILD)
-	$(CXX) $(CXXFLAGS) -c $< -o $@
+	$(CXX) $(CXXFLAGS) -m32 -c $< -o $@
 
-$(BUILD)/address_space.o: kernel/mm/address_space.c | $(BUILD)
+$(BUILD)/address_space.o: kernel/mm/address_space.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(BUILD)/user_mem.o: kernel/mm/user_mem.c | $(BUILD)
+$(BUILD)/user_mem.o: kernel/mm/user_mem.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(BUILD)/copy_user.o: kernel/mm/copy_user.c | $(BUILD)
+$(BUILD)/copy_user.o: kernel/mm/copy_user.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(BUILD)/mm/paging.o: kernel/mm/paging.c | $(BUILD)
-	@mkdir -p $(dir $@)
+$(BUILD)/paging1.o: kernel/mm/paging.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(BUILD)/load_cr3.o: arch/x86/load_cr3.S | $(BUILD)
-	$(CC) $(CFLAGS) -c $< -o $@
+$(BUILD)/load_cr3.o: arch/x86/load_cr3.S
+	$(CC) $(ASFLAGS) -c $< -o $@
 
 # -------------------------
 # LINK
 # -------------------------
 
 $(ISO)/boot/$(KERNEL): $(OBJS)
-	@mkdir -p $(dir $@)
 	$(LD) $(LDFLAGS) -o $@ $(OBJS)
 
 # -------------------------
