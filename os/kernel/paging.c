@@ -15,7 +15,7 @@ extern void terminal_printf(const char*, ...);
 #define ALIGN_4K __attribute__((aligned(4096)))
 
 /* Config */
-#define DEFAULT_IDENTITY_MAP_MB 16U  /* identity map first 16MB by default */
+#define DEFAULT_IDENTITY_MAP_MB PAGING_120_MB
 #define MAX_PAGE_TABLES 64U          /* total page-tables we keep statically */
 
 /* Page directory (aligned) */
@@ -55,8 +55,29 @@ static int allocate_page_table(void) {
     return (int)idx;
 }
 
+/* Accept only the predefined MB profiles (20,40,60,80,100,120) */
+static int paging_is_valid_mb(uint32_t mb) {
+    switch (mb) {
+        case 20:
+        case 40:
+        case 60:
+        case 80:
+        case 100:
+        case 120:
+            return 1;
+        default:
+            return 0;
+    }
+}
+
 void paging_init(uint32_t identity_map_mb) {
+    /* if 0 => use default, if invalid => fallback default */
     if (identity_map_mb == 0) identity_map_mb = DEFAULT_IDENTITY_MAP_MB;
+    if (!paging_is_valid_mb(identity_map_mb)) {
+        if (terminal_printf)
+            terminal_printf("paging: invalid profile %u MB, falling back to %u MB\n", identity_map_mb, DEFAULT_IDENTITY_MAP_MB);
+        identity_map_mb = DEFAULT_IDENTITY_MAP_MB;
+    }
 
     /* Zero page directory */
     for (uint32_t i = 0; i < ENTRIES_PER_TABLE; ++i) page_directory[i] = 0;

@@ -5,26 +5,27 @@
 extern "C" {
 #endif
 
-/* Flags for pages */
+/* Paging profiles (MB) */
+#define PAGING_20_MB   20
+#define PAGING_40_MB   40
+#define PAGING_60_MB   60
+#define PAGING_80_MB   80
+#define PAGING_100_MB  100
+#define PAGING_120_MB  120
+
+/* Page flags */
 #define PAGE_PRESENT   0x1
 #define PAGE_RW        0x2
 #define PAGE_USER      0x4
 
-/* Initialize paging and identity-map the low memory region.
- * identity_map_mb: how many MB to identity-map (default 16 if use 0)
- */
+/* Init paging with one of the predefined sizes above */
 void paging_init(uint32_t identity_map_mb);
 
-/* Map a single 4KB page (virtual -> physical) with flags (PAGE_PRESENT|PAGE_RW ...).
- * Returns 0 on success, non-zero on error (no free page-table).
- * Note: virtual and physical must be page-aligned.
- */
+/* Map/unmap API (4KB pages). Return 0 on success. */
 int paging_map_page(uint32_t virtual_addr, uint32_t physical_addr, uint32_t flags);
-
-/* Unmap a single 4KB page (clears entry). */
 void paging_unmap_page(uint32_t virtual_addr);
 
-/* Get physical address of current page-directory (for debug). */
+/* Debug: get physical address of current page directory */
 uint32_t paging_get_page_directory_phys(void);
 
 #ifdef __cplusplus

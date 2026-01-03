@@ -180,7 +180,15 @@ extern "C" void kernel_main(uint32_t magic, uint32_t addr) {
     pmm_free_frame(a);
     pmm_free_frame(b);
 
-    paging_init(16);
+    //paging_init(PAGING_20_MB);
+    // paging_init(PAGING_40_MB);
+    // paging_init(PAGING_60_MB);
+    // paging_init(PAGING_80_MB);
+    // paging_init(PAGING_100_MB);
+     paging_init(PAGING_120_MB);
+
+     terminal_printf("Paging OK\n");
+
 
     while (1) {
         shell_poll_input();
