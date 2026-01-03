@@ -71,6 +71,7 @@ OBJS = \
 	$(BUILD)/ramfs.o \
 	$(BUILD)/cmd_vfs.o \
 	$(BUILD)/pmm.o \
+	$(BUILD)/cmd_pmm.o \
 
 
 
@@ -255,6 +256,9 @@ $(BUILD)/fat_fs.o: kernel/fs/fat/fat.c | $(BUILD)
 
 $(BUILD)/pmm.o: kernel/memory/pmm.c
 	$(CC) -m32 $(CFLAGS) -c $< -o $@
+
+$(BUILD)/cmd_pmm.o: kernel/cmds/pmm.cpp
+	$(CXX) -m32 $(CXXFLAGS) -c $< -o $@
 
 
 

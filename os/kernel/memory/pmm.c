@@ -157,3 +157,11 @@ uint32_t pmm_used_frames(void)
 {
     return used_frames;
 }
+
+/* Inspect helper exported to commands/debugging */
+int pmm_is_frame_used(uint32_t frame)
+{
+    if (frame >= total_frames) return -1;
+    return (bitmap[frame / 32] & (1u << (frame % 32))) ? 1 : 0;
+}
+

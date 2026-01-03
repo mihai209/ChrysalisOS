@@ -16,6 +16,8 @@
 #include "disk.h"   // stil vechi: void cmd_disk(const char*)
 #include "fat.h"    // stil nou: int cmd_fat(int, char**)
 #include "vfs.h"
+#include "pmm.h"
+
 
 // Definiri manuale freestanding
 #ifndef NULL
@@ -93,6 +95,7 @@ Command command_table[] = {
     { "fat",      (command_fn)cmd_fat },           // stil nou → direct
     { "help",     (command_fn)wrap_cmd_help },
     { "ls",       (command_fn)wrap_cmd_ls },
+    { "pmm",      (command_fn)cmd_pmm},
     { "play",     (command_fn)wrap_cmd_play },
     { "reboot",   (command_fn)wrap_cmd_reboot },
     { "shutdown", (command_fn)wrap_cmd_shutdown },
