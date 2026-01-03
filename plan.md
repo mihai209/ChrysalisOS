@@ -64,7 +64,7 @@
 | Status | Componentă            |               |
 | ------ | --------------------- | ------------- |
 | ✅     | task struct           | baza          |
-| 🔲     | context switch        | greu dar fain |
+| ✅     | context switch        | greu dar fain |
 | 🔲     | scheduler RR          | simplu        |
 | 🔲     | kernel threads        |               |
 | 🔲     | user mode             | ring 3        |
