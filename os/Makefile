@@ -5,6 +5,7 @@ LD  = ld
 
 # flags comune
 COMMON_FLAGS = -ffreestanding -O2 -Wall -Wextra -Ikernel/include -m32
+# CFLAGS += -DSCHED_COOPERATIVE   # uncomment = fallback safe mode
 
 # C / C++
 CFLAGS   = $(COMMON_FLAGS)
@@ -93,6 +94,8 @@ OBJS = \
 	$(BUILD)/task/task.o \
     $(BUILD)/task/sched.o \
     $(BUILD)/arch/switch.o \
+	$(BUILD)/sched/pcb.o \
+    $(BUILD)/sched/scheduler.o \
 
 # -------------------------
 # TARGETURI PRINCIPALE
@@ -339,6 +342,16 @@ $(BUILD)/task/%.o: kernel/task/%.c
 $(BUILD)/arch/%.o: arch/i386/%.S
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -m32 -ffreestanding -c $< -o $@
+
+
+$(BUILD)/sched/pcb.o: kernel/sched/pcb.c kernel/sched/pcb.h
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) -m32 -c $< -o $@
+
+$(BUILD)/sched/scheduler.o: kernel/sched/scheduler.c kernel/sched/scheduler.h kernel/sched/pcb.h
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) -m32 -c $< -o $@
+
 
 # -------------------------
 # LINK

@@ -38,6 +38,8 @@
 #include "mem/kmalloc.h"
 #include "panic_sys.h"
 #include "panic.h"
+#include "sched/scheduler.h"
+#include "sched/pcb.h"
 
 // ===== TASK SUBSYSTEM FALLBACK (in-file, no external headers) =====
 //
@@ -381,43 +383,56 @@ extern "C" void kernel_main(uint32_t magic, uint32_t addr) {
     // a correct switch_to that saves/restores all necessary registers and uses
     // dedicated stacks for tasks.
 #if TASKS_ENABLED
-    terminal_writestring("[tasks] TASKS_ENABLED=1 -> initializing tasks (experimental)\n");
+    terminal_writestring("[sched] tasks created; scheduler disabled by default\n");
+    terminal_writestring("[sched] call scheduler_start() manually when ready\n");
 
-    // Capture main into the task subsystem and create demo tasks.
-    // WARNING: do not call task_yield() until you are sure switch_to is safe.
-    task_init();
+    /* Initialize scheduler structures but DO NOT start scheduling automatically.
+       This prevents an immediate context switch into untested stacks. */
+    scheduler_init(2);
 
-    task_t *ta = task_create("taskA", task_a);
-    if (!ta) {
-        terminal_writestring("[tasks] task_create(taskA) failed\n");
-        panic_if_fatal("task_create(taskA) failed");
+    /* Create tasks (we log failures but do NOT panic automatically).
+       Panic calls are kept commented out (//) so you can re-enable them later
+       if you want the boot to stop on task-creation failures. */
+    int r;
+    r = pcb_create(task_a, NULL);
+    if (r < 0) {
+        terminal_printf("[sched] pcb_create(taskA) -> %d\n", r);
+        serial_write_string("[sched] pcb_create(taskA) failed\r\n");
+        //panic_if_fatal("pcb_create(taskA) failed");
     }
 
-    task_t *tb = task_create("taskB", task_b);
-    if (!tb) {
-        terminal_writestring("[tasks] task_create(taskB) failed\n");
-        panic_if_fatal("task_create(taskB) failed");
+    r = pcb_create(task_b, NULL);
+    if (r < 0) {
+        terminal_printf("[sched] pcb_create(taskB) -> %d\n", r);
+        serial_write_string("[sched] pcb_create(taskB) failed\r\n");
+        //panic_if_fatal("pcb_create(taskB) failed");
     }
 
-    // We do NOT automatically call task_yield() here. The developer should
-    // explicitly call task_yield() once they ensured switch_to works, or add
-    // a tested switch.S that handles all register/state saving (including EFLAGS).
-    terminal_writestring("[tasks] tasks created. Call task_yield() manually to start scheduling.\n");
+    terminal_writestring("[sched] scheduler initialized and tasks created (scheduler NOT started)\n");
+    terminal_writestring("[sched] To start scheduler manually call: scheduler_start();\n");
 #else
-    terminal_writestring("[tasks] TASKS_ENABLED=0 (safe default). To enable tasks, set TASKS_ENABLED=1 in kernel/kernel.cpp and ensure switch_to is correct.\n");
+    terminal_writestring("[sched] TASKS_ENABLED=0 (scheduler disabled)\n");
 #endif
+
+
 
     // 21) Main loop: shell polling + halt (no unsafe yields)
     // If you want the shell to be preempted by tasks, move shell into its own
     // task and enable TASKS_ENABLED after implementing a safe switch_to.
     while (1) {
         shell_poll_input();   // non-blocking poll for shell input
+
+
+
 #if TASKS_ENABLED
         // If you truly want automated scheduling when TASKS_ENABLED==1, replace
         // the following line with task_yield() once you verified switch_to and
         // have tested on a VM snapshot (so you can revert on triple fault).
         // task_yield();
 #endif
+
+
+
         asm volatile("hlt"); // reduce power until next interrupt
     }
 }
