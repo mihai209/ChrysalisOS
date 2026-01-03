@@ -25,8 +25,8 @@
 #include "paging.h"
 #include "user/user.h"
 #include "mem/kmalloc.h"
-
-
+#include "panic_sys.h"
+#include "panic.h"
 
 //#include <cstdio.h>
 /*#include "debug/debug.h"*/
@@ -79,8 +79,6 @@ static void try_init_framebuffer_from_multiboot(uint32_t magic, uint32_t addr)
 
 extern "C" void kernel_main(uint32_t magic, uint32_t addr) {
 
-    
-
     /* try to pick up framebuffer info if GRUB provided it */
     try_init_framebuffer_from_multiboot(magic, addr);
 
@@ -113,8 +111,6 @@ extern "C" void kernel_main(uint32_t magic, uint32_t addr) {
     pic_remap();
     terminal_init();
 
-    
-
     bootlogo_show();
 
     fs_init();
@@ -134,8 +130,6 @@ extern "C" void kernel_main(uint32_t magic, uint32_t addr) {
 
     shell_init();
     pmm_init((void*)addr);
-
-
 
     kbd_buffer_init();
     keyboard_init();
@@ -176,13 +170,10 @@ extern "C" void kernel_main(uint32_t magic, uint32_t addr) {
     time_get_local(&t);
     ata_init();
 
-
     uint32_t frame1 = pmm_alloc_frame();
     uint32_t frame2 = pmm_alloc_frame();
 
     terminal_printf("PMM: %x %x\n", frame1, frame2);
-
-
 
     pmm_free_frame(frame1);
     pmm_free_frame(frame2);
@@ -196,7 +187,6 @@ extern "C" void kernel_main(uint32_t magic, uint32_t addr) {
 
      terminal_printf("Paging OK\n");
 
-
     extern uint8_t __heap_start;
     extern uint8_t __heap_end;
 
@@ -209,6 +199,54 @@ extern "C" void kernel_main(uint32_t magic, uint32_t addr) {
     /* Defensive: verificări simple înainte de free */
     if (heap_a) kfree(heap_a);
     if (heap_b) kfree(heap_b);
+
+    /* ===== SAFE: register system info for panic screen =====
+       - extragem total RAM din Multiboot (dacă GRUB a furnizat mem_lower/mem_upper)
+       - free_kb rămâne 0 aici (înlocuiește cu date reale din PMM mai târziu dacă vrei)
+       - CPU string îl obţinem din panic_sys (detectare CPUID internă) dacă nu ai setat altceva
+       - uptime rămâne 0 (înlocuieşte cu variabila ta de uptime dacă ai)
+    */
+
+    uint32_t total_kb = 0;
+    uint32_t free_kb  = 0;
+    uint32_t uptime_s = 0;
+
+    /* Try to read mem_lower/mem_upper from multiboot info if present */
+    if (magic == MULTIBOOT_MAGIC && addr != 0) {
+        /* minimal struct for mem_lower/mem_upper (Multiboot 1) */
+        struct mb_basic {
+            uint32_t flags;
+            uint32_t mem_lower;
+            uint32_t mem_upper;
+            /* rest ignored */
+        };
+
+        struct mb_basic* mb = (struct mb_basic*)(uintptr_t)addr;
+        if (mb && (mb->flags & 0x1)) {
+            /* mem_lower and mem_upper are given in KB by Multiboot 1 spec */
+            total_kb = mb->mem_lower + mb->mem_upper;
+        }
+    }
+
+    /* Optional: if your PMM exposes total/free frame counts, compute free_kb here.
+       Example (uncomment and adapt if you have pmm_get_free_frame_count()), but
+       leave commented out to avoid references to undefined symbols:
+
+       // uint32_t free_frames = pmm_get_free_frame_count();
+       // free_kb = free_frames * 4; // if frame size is 4 KB
+       // uint32_t total_frames = pmm_get_total_frame_count();
+       // total_kb = total_frames * 4;
+    */
+
+    /* CPU string: ask panic_sys for detected CPU (will use CPUID if needed) */
+    const char *cpu_detected = panic_sys_cpu_str();
+
+    /* Register values (safe even if zero/unknown) */
+    panic_sys_register_memory_kb(total_kb, free_kb);
+    panic_sys_register_storage_kb(0, 0); /* replace with real storage values if available */
+    panic_sys_register_cpu_str(cpu_detected);
+    panic_sys_register_uptime_seconds(uptime_s);
+
 
     while (1) {
         shell_poll_input();

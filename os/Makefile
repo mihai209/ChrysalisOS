@@ -78,6 +78,7 @@ OBJS = \
 	$(BUILD)/mem/kmalloc.o \
 	$(BUILD)/panic.o \
 	$(BUILD)/cmd_crash.o \
+	$(BUILD)/panic_sys.o \
 
 
 
@@ -285,6 +286,10 @@ $(BUILD)/paging.o: kernel/paging.c kernel/paging.h
 $(BUILD)/mem/%.o: kernel/mem/%.c
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -Ikernel/include -ffreestanding -m32 -c $< -o $@
+
+$(BUILD)/panic_sys.o: kernel/panic_sys.c | $(BUILD)
+	$(CC) $(CFLAGS) -m32 -c $< -o $@
+
 
 
 
