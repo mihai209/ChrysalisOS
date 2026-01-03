@@ -76,6 +76,9 @@ OBJS = \
 	$(BUILD)/user.o \
 	$(BUILD)/cmd_login.o \
 	$(BUILD)/mem/kmalloc.o \
+	$(BUILD)/panic.o \
+	$(BUILD)/cmd_crash.o \
+
 
 
 # -------------------------
@@ -251,6 +254,12 @@ $(BUILD)/user.o: kernel/user/user.cpp | $(BUILD)
 	$(CXX) $(CXXFLAGS) -m32 -c $< -o $@
 
 $(BUILD)/cmd_login.o: kernel/cmds/login.cpp | $(BUILD)
+	$(CXX) $(CXXFLAGS) -m32 -c $< -o $@
+
+$(BUILD)/panic.o: kernel/panic.cpp kernel/panic.h | $(BUILD)
+	$(CXX) $(CXXFLAGS) -m32 -c $< -o $@
+
+$(BUILD)/cmd_crash.o: kernel/cmds/crash.cpp kernel/cmds/crash.h | $(BUILD)
 	$(CXX) $(CXXFLAGS) -m32 -c $< -o $@
 
 # -------------------------

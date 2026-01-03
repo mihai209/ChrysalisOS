@@ -18,7 +18,7 @@
 #include "vfs.h"
 #include "pmm.h"
 #include "login.h"
-
+#include "crash.h"
 // Definiri manuale freestanding
 #ifndef NULL
 #define NULL 0          // în loc de ((void*)0) → evită eroarea de conversie
@@ -88,6 +88,7 @@ static int wrap_cmd_uptime(int argc, char **argv)   { return old_style_wrapper(c
 /* Tabelul final de comenzi */
 Command command_table[] = {
     { "beep",     (command_fn)wrap_cmd_beep },
+    { "crash",    (command_fn)cmd_crash},
     { "cat",      (command_fn)wrap_cmd_cat },
     { "clear",    (command_fn)wrap_cmd_clear },
     { "date",     (command_fn)wrap_cmd_date },
