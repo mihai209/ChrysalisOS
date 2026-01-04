@@ -1,3 +1,14 @@
+/*
+ * Chrysalis OS
+ * Copyright (c) 2026 mihai209
+ *
+ * Licensed under the MIT License.
+ * You may use, modify, and redistribute this software,
+ * provided that the original author is credited and
+ * this notice is preserved.
+ */
+
+
 // kernel/kernel.cpp
 // Updated: defensive task integration + panic fallback (tasks disabled by default)
 //
