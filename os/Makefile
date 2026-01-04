@@ -99,6 +99,12 @@ OBJS = \
 	$(BUILD)/ram.o \
 	$(BUILD)/tpm.o \
 	$(BUILD)/videomemory.o \
+	$(BUILD)/cmd_credits.o \
+	$(BUILD)/cmd_echo.o \
+    $(BUILD)/cmd_fortune.o \
+    $(BUILD)/cmd_buildinfo.o \
+    $(BUILD)/cmd_sysfetch.o \
+    $(BUILD)/cmd_chrysver.o \
 
 
 
@@ -365,6 +371,25 @@ $(BUILD)/tpm.o: kernel/detect/tpm.c
 
 $(BUILD)/videomemory.o: kernel/detect/videomemory.c
 	$(CC) $(CFLAGS) -Ikernel/include -c $< -o $@
+
+$(BUILD)/cmd_credits.o: kernel/cmds/credits.cpp
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+
+$(BUILD)/cmd_echo.o: kernel/cmds/echo.cpp
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+$(BUILD)/cmd_fortune.o: kernel/cmds/fortune.cpp
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+$(BUILD)/cmd_buildinfo.o: kernel/cmds/buildinfo.cpp
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+$(BUILD)/cmd_sysfetch.o: kernel/cmds/sysfetch.cpp
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+$(BUILD)/cmd_chrysver.o: kernel/cmds/chrysver.cpp
+	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 # -------------------------
 # LINK

@@ -20,6 +20,13 @@
 #include "login.h"
 #include "crash.h"
 #include "mem.h"
+#include "credits.h"
+#include "echo.h"
+#include "fortune.h"
+#include "buildinfo.h"
+#include "sysfetch.h"
+#include "chrysver.h"
+
 // Definiri manuale freestanding
 #ifndef NULL
 #define NULL 0          // în loc de ((void*)0) → evită eroarea de conversie
@@ -88,13 +95,18 @@ static int wrap_cmd_uptime(int argc, char **argv)   { return old_style_wrapper(c
 //static int wrap_cmd_login_main(int argc, char **argv) { return old_style_wrapper(cmd_login_main, argc, argv); }
 /* Tabelul final de comenzi */
 Command command_table[] = {
+    { "buildinfo", (command_fn)cmd_buildinfo },
     { "beep",     (command_fn)wrap_cmd_beep },
+    { "chrysver", (command_fn)cmd_chrysver },
     { "crash",    (command_fn)cmd_crash},
     { "cat",      (command_fn)wrap_cmd_cat },
     { "clear",    (command_fn)wrap_cmd_clear },
+    { "credits",  (command_fn)cmd_credits},
     { "date",     (command_fn)wrap_cmd_date },
     { "disk",     (command_fn)wrap_cmd_disk },     // stil vechi → wrapper
     { "exit",     (command_fn)wrap_cmd_shutdown},
+    { "echo", (command_fn)cmd_echo },
+    { "fortune", (command_fn)cmd_fortune },
     { "fat",      (command_fn)cmd_fat },           // stil nou → direct
     { "help",     (command_fn)wrap_cmd_help },
     { "ls",       (command_fn)wrap_cmd_ls },
@@ -103,6 +115,7 @@ Command command_table[] = {
     { "pmm",      (command_fn)cmd_pmm},
     { "play",     (command_fn)wrap_cmd_play },
     { "reboot",   (command_fn)wrap_cmd_reboot },
+    { "sysfetch", (command_fn)cmd_sysfetch },
     { "shutdown", (command_fn)wrap_cmd_shutdown },
     { "ticks",    (command_fn)wrap_cmd_ticks },
     { "touch",    (command_fn)wrap_cmd_touch },
