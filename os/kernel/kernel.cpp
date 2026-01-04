@@ -26,6 +26,7 @@
 #include "drivers/pic.h"
 #include "arch/i386/gdt.h"
 #include "arch/i386/idt.h"
+#include "arch/i386/tss.h"
 #include "drivers/keyboard.h"
 #include "drivers/pit.h"
 #include "shell/shell.h"
@@ -231,6 +232,15 @@ extern "C" void kernel_main(uint32_t magic, uint32_t addr) {
 
     // 4) CPU/interrupt basic setup: GDT -> IDT -> PIC. Order matters.
     gdt_init();
+
+    uint32_t kernel_stack;
+    asm volatile("mov %%esp, %0" : "=r"(kernel_stack));
+
+    tss_init(kernel_stack);
+
+
+    terminal_writestring("[gdt] ring3 segments loaded\n");
+
     idt_init();
     pic_remap();
 

@@ -30,6 +30,8 @@ typedef struct task {
     int pid;
     uint32_t *kstack_ptr;          /* pointer to prepared saved-frame on stack */
     uint32_t cr3;                  /* optional page directory */
+    uint32_t kernel_stack;
+    uint32_t user_stack;
     uint8_t kstack[KSTACK_SIZE] __attribute__((aligned(16)));
     struct task *next;
 } task_t;

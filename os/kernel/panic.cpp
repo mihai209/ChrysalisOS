@@ -3,7 +3,7 @@
 
 #include "panic.h"
 #include "panic_sys.h"
-
+#include "arch/i386/tss.h"
 // === Freestanding headers (fără libc) ===
 typedef unsigned int       size_t;
 typedef unsigned char      uint8_t;
@@ -132,6 +132,12 @@ extern "C" void panic_render_pretty(const char* msg) {
         draw_string(indent, line++, "restart your computer.");
         line += 1;
     }
+
+
+    if (!tss_loaded) {
+    panic("Ring3 failed: TSS not loaded");
+}
+
 
     // Instrucțiuni tehnice - aliniate la stânga, compact
     draw_string(indent, line++, "Check to make sure any new hardware or software is properly installed.");

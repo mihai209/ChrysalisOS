@@ -61,3 +61,10 @@ qemu-system-i386 \
   -m 64
 
 https://opensource.org/license/mit
+
+| Segment       | Access |
+| ------------- | ------ |
+| Kernel code   | `0x9A` |
+| Kernel data   | `0x92` |
+| **User code** | `0xFA` |
+| **User data** | `0xF2` |

@@ -105,6 +105,9 @@ OBJS = \
     $(BUILD)/cmd_buildinfo.o \
     $(BUILD)/cmd_sysfetch.o \
     $(BUILD)/cmd_chrysver.o \
+	build/arch/tss.o \
+    build/arch/tss_flush.o \
+
 
 
 
@@ -338,6 +341,9 @@ $(BUILD)/user_mem.o: kernel/mm/user_mem.c | $(BUILD)
 $(BUILD)/copy_user.o: kernel/mm/copy_user.c | $(BUILD)
 	$(CC) $(CFLAGS) -c $< -o $@
 
+$(BUILD)/vmm.o: kernel/mm/vmm.c | $(BUILD)
+	$(CC) $(CFLAGS) -c $< -o $@
+
 $(BUILD)/mm/paging.o: kernel/mm/paging.c | $(BUILD)
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c $< -o $@
@@ -390,6 +396,12 @@ $(BUILD)/cmd_sysfetch.o: kernel/cmds/sysfetch.cpp
 
 $(BUILD)/cmd_chrysver.o: kernel/cmds/chrysver.cpp
 	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+build/arch/tss.o: kernel/arch/i386/tss.c
+	$(CC) $(CFLAGS) -c $< -o $@
+
+build/arch/tss_flush.o: kernel/arch/i386/tss_flush.S
+	$(AS) $(ASFLAGS) $< -o $@
 
 # -------------------------
 # LINK
