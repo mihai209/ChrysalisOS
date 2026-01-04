@@ -1,27 +1,44 @@
+// kernel/panic.cpp
 #include "panic.h"
 #include "panic_sys.h"
-#include <stddef.h>
-#include <stdint.h>
+
+// === Headere freestanding sigure (fără libc) ===
+typedef unsigned int       size_t;
+typedef unsigned char      uint8_t;
+typedef unsigned short     uint16_t;
+typedef unsigned int       uint32_t;
+typedef signed int         int32_t;
+
+// === Implementare fallback pentru strlen (înlocuiește <string.h>) ===
+static size_t strlen(const char* str) {
+    const char* s = str;
+    while (*s) ++s;
+    return s - str;
+}
+
+// === Restul codului rămâne identic, doar cu ajustări minore ===
 
 #define VGA_MEM ((volatile uint16_t*)0xB8000)
 #define VGA_W 80
 #define VGA_H 25
 
-// Schema de culori "Chrysalis Premium"
+// Schema de culori modernă 2025 - Dark Mode + Aero Glass vibe
 enum {
-    COLOR_BG      = 1,  // Albastru inchis
-    COLOR_SHADOW  = 0,  // Negru (umbra)
-    COLOR_WIN     = 1,  // Albastru
-    COLOR_BORDER  = 11, // Cyan deschis
-    COLOR_TXT     = 15, // Alb pur
-    COLOR_LBL     = 14, // Galben (etichete)
-    COLOR_VAL     = 10, // Verde (valori ok)
-    COLOR_ERR     = 12  // Rosu (eroare)
+    COLOR_BG_DARK   = 0,   // Negru
+    COLOR_WIN       = 8,   // Gri închis
+    COLOR_GLASS     = 7,   // Gri deschis (highlight)
+    COLOR_BORDER    = 11,  // Cyan
+    COLOR_SHADOW    = 0,
+    COLOR_TXT       = 15,
+    COLOR_LBL       = 14,
+    COLOR_VAL       = 10,
+    COLOR_ERR       = 12,
+    COLOR_ACCENT    = 9
 };
 
 static inline uint8_t attr(uint8_t fg, uint8_t bg) { return (bg << 4) | (fg & 0x0F); }
 
-/* --- I/O & Serial Fallback --- */
+/* --- I/O & Serial --- */
 static inline void outb(uint16_t port, uint8_t val) { asm volatile("outb %0, %1" : : "a"(val), "Nd"(port)); }
 static inline uint8_t inb(uint16_t port) { uint8_t v; asm volatile("inb %1, %0" : "=a"(v) : "Nd"(port)); return v; }
 
@@ -32,7 +49,7 @@ static void serial_print(const char* s) {
     }
 }
 
-/* --- Randare Primitiva --- */
+/* --- Primitve --- */
 static void put_c(int x, int y, char c, uint8_t a) {
     if (x >= 0 && x < VGA_W && y >= 0 && y < VGA_H)
         VGA_MEM[y * VGA_W + x] = ((uint16_t)a << 8) | (uint8_t)c;
@@ -43,7 +60,6 @@ static void draw_rect(int x, int y, int w, int h, uint8_t a) {
         for (int j = x; j < x + w; j++) put_c(j, i, ' ', a);
 }
 
-// Scriere Multi-line cu detectare de margini
 static int draw_string_wrap(int x, int y, int max_w, const char* s, uint8_t a) {
     int cur_x = x;
     int cur_y = y;
@@ -55,83 +71,106 @@ static int draw_string_wrap(int x, int y, int max_w, const char* s, uint8_t a) {
         }
         put_c(cur_x++, cur_y, *s++, a);
     }
-    return cur_y; // Returneaza ultimul rand folosit
+    return cur_y;
 }
 
-/* --- UI Components --- */
-static void draw_window(int x, int y, int w, int h, const char* title) {
-    // Umbra ferestrei (efect 3D)
-    draw_rect(x + 1, y + 1, w, h, attr(0, COLOR_SHADOW));
-    // Corpul ferestrei
+/* --- Fereastră modernă --- */
+static void draw_window_modern(int x, int y, int w, int h, const char* title) {
+    draw_rect(x + 2, y + 2, w, h, attr(COLOR_TXT, COLOR_SHADOW));
     draw_rect(x, y, w, h, attr(COLOR_TXT, COLOR_WIN));
-    // Border dublu (CP437)
+
+    for (int i = x; i < x + w; i++) {
+        put_c(i, y + 1, ' ', attr(COLOR_TXT, COLOR_GLASS));
+        put_c(i, y + 2, ' ', attr(COLOR_TXT, COLOR_GLASS));
+    }
+
     uint8_t b_a = attr(COLOR_BORDER, COLOR_WIN);
-    for (int i = x + 1; i < x + w - 1; i++) { put_c(i, y, (char)205, b_a); put_c(i, y + h - 1, (char)205, b_a); }
-    for (int i = y + 1; i < y + h - 1; i++) { put_c(x, i, (char)186, b_a); put_c(x + w - 1, i, (char)186, b_a); }
-    put_c(x, y, (char)201, b_a); put_c(x + w - 1, y, (char)187, b_a);
-    put_c(x, y + h - 1, (char)200, b_a); put_c(x + w - 1, y + h - 1, (char)188, b_a);
-    // Titlu
-    draw_string_wrap(x + (w / 2) - 10, y, 30, title, attr(COLOR_WIN, COLOR_BORDER));
+    for (int i = x + 2; i < x + w - 2; i++) {
+        put_c(i, y, 196, b_a);
+        put_c(i, y + h - 1, 196, b_a);
+    }
+    for (int i = y + 2; i < y + h - 2; i++) {
+        put_c(x, i, 179, b_a);
+        put_c(x + w - 1, i, 179, b_a);
+    }
+
+    put_c(x + 1, y, 218, b_a); put_c(x + w - 2, y, 191, b_a);
+    put_c(x + 1, y + h - 1, 192, b_a); put_c(x + w - 2, y + h - 1, 217, b_a);
+    put_c(x, y + 1, 179, b_a); put_c(x + w - 1, y + 1, 179, b_a);
+    put_c(x, y + h - 2, 179, b_a); put_c(x + w - 1, y + h - 2, 179, b_a);
+
+    size_t title_len = strlen(title);
+    int title_x = x + (w - (int)title_len) / 2;
+    draw_string_wrap(title_x, y + 1, w, title, attr(COLOR_BG_DARK, COLOR_BORDER));
 }
 
-static void draw_progress(int x, int y, int w, uint32_t pct, const char* lbl) {
+/* --- Progress bar --- */
+static void draw_progress_modern(int x, int y, int w, uint32_t pct, const char* lbl) {
     draw_string_wrap(x, y, 20, lbl, attr(COLOR_LBL, COLOR_WIN));
-    int bar_x = x + 12;
+
+    int bar_x = x + 16;
+    int bar_w = w - 16;
     if (pct > 100) pct = 100;
-    int filled = (pct * (w - 12)) / 100;
-    for (int i = 0; i < (w - 12); i++) {
-        put_c(bar_x + i, y, (i < filled) ? (char)219 : (char)176, attr(COLOR_LBL, COLOR_WIN));
+    int filled = (pct * bar_w) / 100;
+
+    put_c(bar_x - 1, y, '[', attr(COLOR_BORDER, COLOR_WIN));
+    put_c(bar_x + bar_w, y, ']', attr(COLOR_BORDER, COLOR_WIN));
+
+    uint8_t fill_attr = attr(pct >= 80 ? COLOR_ERR : COLOR_VAL, COLOR_WIN);
+
+    for (int i = 0; i < bar_w; i++) {
+        char block;
+        if (i < filled * 0.6)       block = 219;
+        else if (i < filled * 0.8)  block = 178;
+        else if (i < filled)        block = 177;
+        else                        block = 176;
+        put_c(bar_x + i, y, block, fill_attr);
     }
 }
 
-/* --- Logic --- */
+/* --- u32 to string --- */
 static void u32_ptr(uint32_t v, char* b) {
-    char t[12]; int i = 0;
+    char t[12];
+    int i = 0;
     if (!v) { b[0]='0'; b[1]=0; return; }
     while (v) { t[i++] = (v % 10) + '0'; v /= 10; }
-    int j = 0; while (i > 0) b[j++] = t[--i]; b[j] = 0;
+    int j = 0;
+    while (i > 0) b[j++] = t[--i];
+    b[j] = 0;
 }
 
+/* --- Render panic --- */
 extern "C" void panic_render_pretty(const char* msg) {
-    // 1. Fundal curat
-    draw_rect(0, 0, VGA_W, VGA_H, attr(7, 0));
-    
-    // 2. Fereastra principala
-    draw_window(5, 2, 70, 20, " CRITICAL SYSTEM FAILURE ");
+    draw_rect(0, 0, VGA_W, VGA_H, attr(COLOR_TXT, COLOR_BG_DARK));
+    draw_window_modern(6, 3, 68, 19, "  CRITICAL SYSTEM FAILURE  ");
 
-    // 3. Mesaj Multi-line
-    draw_string_wrap(8, 4, 60, "The kernel has encountered an unrecoverable error:", attr(COLOR_TXT, COLOR_WIN));
-    int last_y = draw_string_wrap(8, 6, 64, msg ? msg : "No error description provided.", attr(COLOR_ERR, COLOR_WIN));
+    draw_string_wrap(9, 6, 60, "Kernel panic - unrecoverable error", attr(COLOR_TXT, COLOR_WIN));
+    int last_y = draw_string_wrap(9, 8, 62, msg ? msg : "No error description available.", attr(COLOR_ERR, COLOR_WIN));
 
-    // 4. Statisti (Dinamice sub mesaj)
-    int stats_y = (last_y < 10) ? 11 : last_y + 2;
-    draw_rect(7, stats_y - 1, 66, 1, attr(COLOR_BORDER, COLOR_WIN)); // Linie separatoare
-    for(int i=7; i<73; i++) put_c(i, stats_y-1, (char)196, attr(COLOR_BORDER, COLOR_WIN));
+    int stats_y = last_y + 3;
+    draw_string_wrap(9, stats_y, 40, "SYSTEM DIAGNOSTICS", attr(COLOR_ACCENT, COLOR_WIN));
+    for (int i = 8; i < 72; i++) {
+        put_c(i, stats_y + 1, 196, attr(COLOR_BORDER, COLOR_WIN));
+    }
 
-    draw_string_wrap(8, stats_y, 20, "SYSTEM STATUS:", attr(COLOR_LBL, COLOR_WIN));
-    
-    // RAM
     uint32_t tot = panic_sys_total_ram_kb();
     uint32_t fr = panic_sys_free_ram_kb();
     if (tot > 0) {
-        uint32_t used = ((tot - fr) * 100) / tot;
-        draw_progress(8, stats_y + 2, 40, used, "Memory:");
+        uint32_t used_pct = ((tot - fr) * 100) / tot;
+        draw_progress_modern(9, stats_y + 3, 58, used_pct, "Memory Usage:");
     }
 
-    // CPU Info
     const char* cpu = panic_sys_cpu_str();
-    draw_string_wrap(8, stats_y + 4, 15, "Processor:", attr(COLOR_LBL, COLOR_WIN));
-    draw_string_wrap(20, stats_y + 4, 50, cpu ? cpu : "Generic x86", attr(COLOR_VAL, COLOR_WIN));
+    draw_string_wrap(9, stats_y + 5, 20, "Processor:", attr(COLOR_LBL, COLOR_WIN));
+    draw_string_wrap(28, stats_y + 5, 40, cpu ? cpu : "Generic x86", attr(COLOR_VAL, COLOR_WIN));
 
-    // Uptime
-    char upt[12]; u32_ptr(panic_sys_uptime_seconds(), upt);
-    draw_string_wrap(8, stats_y + 5, 15, "Uptime(s):", attr(COLOR_LBL, COLOR_WIN));
-    draw_string_wrap(20, stats_y + 5, 10, upt, attr(COLOR_VAL, COLOR_WIN));
+    char upt[16];
+    u32_ptr(panic_sys_uptime_seconds(), upt);
+    draw_string_wrap(9, stats_y + 6, 20, "Uptime (seconds):", attr(COLOR_LBL, COLOR_WIN));
+    draw_string_wrap(28, stats_y + 6, 15, upt, attr(COLOR_VAL, COLOR_WIN));
 
-    // 5. Footer Interactive
-    draw_string_wrap(15, 20, 50, "Visit: https://chrysalisos.netlify.app/", attr(8, COLOR_WIN));
-    draw_rect(6, 21, 68, 1, attr(0, COLOR_LBL));
-    draw_string_wrap(22, 21, 40, " [M] ATTEMPT EMERGENCY REBOOT ", attr(0, COLOR_LBL));
+    draw_string_wrap(12, 21, 60, "Chrysalis OS | https://chrysalisos.netlify.app", attr(COLOR_GLASS, COLOR_WIN));
+    draw_string_wrap(22, 22, 40, "[M] Repornire de urgenta!", attr(COLOR_TXT, COLOR_ACCENT));
 }
 
 extern "C" void try_reboot() {
@@ -144,17 +183,18 @@ extern "C" void try_reboot() {
 extern "C" void panic_ex(const char *msg, uint32_t eip, uint32_t cs, uint32_t eflags) {
     (void)eip; (void)cs; (void)eflags;
     asm volatile("cli");
-    
-    // Log pe serial inainte de orice (daca VGA e corupt)
+
     serial_print("\n!!! KERNEL PANIC !!!\n");
-    if(msg) serial_print(msg);
+    if (msg) serial_print(msg);
     serial_print("\n");
 
     panic_render_pretty(msg);
 
     for (;;) {
         if (inb(0x64) & 1) {
-            if (inb(0x60) == 0x32) try_reboot();
+            if (inb(0x60) == 0x32) {
+                try_reboot();
+            }
         }
     }
 }

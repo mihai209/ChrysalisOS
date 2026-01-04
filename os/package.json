@@ -5,7 +5,7 @@
   "scripts": {
   "r:vm": "sh -c 'rm -f swtpm.sock && mkdir -p tpm && swtpm socket --tpmstate dir=tpm --ctrl type=unixio,path=swtpm.sock & sleep 0.2 && qemu-system-i386 -m 64 -boot order=d -cdrom chrysalis.iso -drive file=hdd.img,format=raw -chardev socket,id=chrtpm,path=swtpm.sock -tpmdev emulator,id=tpm0,chardev=chrtpm -device tpm-tis,tpmdev=tpm0'"
 ,
-    "r:hdd": "clear ; qemu-system-x86_64 -boot order=d -cdrom chrysalis.iso -drive file=hdd.img,format=raw",
+    "r:hdd": "clear ; qemu-system-x86_64 -audiodev pa,id=snd0 -machine pcspk-audiodev=snd0 -boot order=d -cdrom chrysalis.iso -drive file=hdd.img,format=raw",
 
     "//_all": "Curata, compileaza si creeaza imaginea ISO",
     "all": "clear ; make clean && make && make iso",
