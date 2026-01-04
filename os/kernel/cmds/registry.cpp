@@ -26,7 +26,9 @@
 #include "buildinfo.h"
 #include "sysfetch.h"
 #include "chrysver.h"
-
+#include "elf.h"
+#include "elf_debug.h"
+#include "elf_crash.h"
 // Definiri manuale freestanding
 #ifndef NULL
 #define NULL 0          // în loc de ((void*)0) → evită eroarea de conversie
@@ -104,6 +106,9 @@ Command command_table[] = {
     { "credits",  (command_fn)cmd_credits},
     { "date",     (command_fn)wrap_cmd_date },
     { "disk",     (command_fn)wrap_cmd_disk },     // stil vechi → wrapper
+    { "elf", (command_fn)cmd_elf},
+    { "elf-debug", (command_fn)cmd_elf_debug},
+    { "elf-crash", (command_fn)cmd_elf_crash},
     { "exit",     (command_fn)wrap_cmd_shutdown},
     { "echo", (command_fn)cmd_echo },
     { "fortune", (command_fn)cmd_fortune },

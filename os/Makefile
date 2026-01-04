@@ -1,14 +1,14 @@
 CXX = g++
-CC  = gcc
-AS  = nasm
-LD  = ld
+CC = gcc
+AS = nasm
+LD = ld
 
 # flags comune
 COMMON_FLAGS = -ffreestanding -O2 -Wall -Wextra -Ikernel/include -m32
-# CFLAGS += -DSCHED_COOPERATIVE   # uncomment = fallback safe mode
+# CFLAGS += -DSCHED_COOPERATIVE # uncomment = fallback safe mode
 
 # C / C++
-CFLAGS   = $(COMMON_FLAGS)
+CFLAGS = $(COMMON_FLAGS)
 CXXFLAGS = $(COMMON_FLAGS) -fno-exceptions -fno-rtti
 
 ASFLAGS = -f elf32
@@ -92,360 +92,364 @@ OBJS = \
 	$(BUILD)/mm/paging.o \
 	$(BUILD)/load_cr3.o \
 	$(BUILD)/task/task.o \
-    $(BUILD)/task/sched.o \
-    $(BUILD)/arch/switch.o \
+	$(BUILD)/task/sched.o \
+	$(BUILD)/arch/switch.o \
 	$(BUILD)/sched/pcb.o \
-    $(BUILD)/sched/scheduler.o \
+	$(BUILD)/sched/scheduler.o \
 	$(BUILD)/ram.o \
 	$(BUILD)/tpm.o \
 	$(BUILD)/videomemory.o \
 	$(BUILD)/cmd_credits.o \
 	$(BUILD)/cmd_echo.o \
-    $(BUILD)/cmd_fortune.o \
-    $(BUILD)/cmd_buildinfo.o \
-    $(BUILD)/cmd_sysfetch.o \
-    $(BUILD)/cmd_chrysver.o \
-	build/arch/tss.o \
-    build/arch/tss_flush.o \
+	$(BUILD)/cmd_fortune.o \
+	$(BUILD)/cmd_buildinfo.o \
+	$(BUILD)/cmd_sysfetch.o \
+	$(BUILD)/cmd_chrysver.o \
+	$(BUILD)/arch/tss.o \
+	$(BUILD)/arch/tss_flush.o \
 	$(BUILD)/arch/syscall.o \
-    $(BUILD)/arch/syscall_asm.o \
-	build/arch/isr_default.o \
-	build/arch/syscall_dispatch.o \
-    $(BUILD)/elf.o \
-    $(BUILD)/process.o \
-    $(BUILD)/exec.o \
+	$(BUILD)/arch/syscall_asm.o \
+	$(BUILD)/arch/isr_default.o \
+	$(BUILD)/arch/syscall_dispatch.o \
+	$(BUILD)/elf.o \
+	$(BUILD)/process.o \
+	$(BUILD)/exec.o \
 	$(BUILD)/stubs/exec_fallbacks.o \
-
-
+	$(BUILD)/cmds/elf.o \
+	$(BUILD)/cmds/elf_debug.o \
+	$(BUILD)/cmds/elf_crash.o
 
 # -------------------------
 # TARGETURI PRINCIPALE
 # -------------------------
 
-.PHONY: all iso run clean help consolerun
+.PHONY: all iso run clean help consolerun dirs
 
 all: $(ISO)/boot/$(KERNEL)
 
 $(BUILD):
 	mkdir -p $(BUILD)
-	
 
-dirs:
-	mkdir -p build/elf
-	mkdir -p build/proc
-	mkdir -p build/stubs
-
+dirs: $(BUILD)
+	mkdir -p $(BUILD)/elf
+	mkdir -p $(BUILD)/proc
+	mkdir -p $(BUILD)/stubs
+	mkdir -p $(BUILD)/cmds
+	mkdir -p $(BUILD)/arch
 
 # -------------------------
 # ASSEMBLY
 # -------------------------
 
-$(BUILD)/boot.o: kernel/boot.asm | $(BUILD)
+$(BUILD)/boot.o: kernel/boot.asm | dirs
 	$(AS) $(ASFLAGS) $< -o $@
 
-$(BUILD)/gdt_flush.o: kernel/arch/i386/gdt.asm | $(BUILD)
+$(BUILD)/gdt_flush.o: kernel/arch/i386/gdt.asm | dirs
 	$(AS) $(ASFLAGS) $< -o $@
 
-$(BUILD)/interrupts.o: kernel/interrupts/interrupts.asm | $(BUILD)
+$(BUILD)/interrupts.o: kernel/interrupts/interrupts.asm | dirs
 	$(AS) $(ASFLAGS) $< -o $@
 
 # -------------------------
 # C++ OBJECTS
 # -------------------------
 
-$(BUILD)/kernel.o: kernel/kernel.cpp | $(BUILD)
+$(BUILD)/kernel.o: kernel/kernel.cpp | dirs
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-$(BUILD)/idt.o: kernel/arch/i386/idt.cpp | $(BUILD)
+$(BUILD)/idt.o: kernel/arch/i386/idt.cpp | dirs
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-$(BUILD)/irq.o: kernel/interrupts/irq.cpp | $(BUILD)
+$(BUILD)/irq.o: kernel/interrupts/irq.cpp | dirs
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-$(BUILD)/keyboard.o: kernel/drivers/keyboard.cpp | $(BUILD)
+$(BUILD)/keyboard.o: kernel/drivers/keyboard.cpp | dirs
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-$(BUILD)/terminal.o: kernel/terminal.cpp | $(BUILD)
+$(BUILD)/terminal.o: kernel/terminal.cpp | dirs
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-$(BUILD)/pic.o: kernel/drivers/pic.cpp | $(BUILD)
+$(BUILD)/pic.o: kernel/drivers/pic.cpp | dirs
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-$(BUILD)/gdt.o: kernel/arch/i386/gdt.cpp | $(BUILD)
+$(BUILD)/gdt.o: kernel/arch/i386/gdt.cpp | dirs
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-$(BUILD)/isr.o: kernel/interrupts/isr.cpp | $(BUILD)
+$(BUILD)/isr.o: kernel/interrupts/isr.cpp | dirs
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-$(BUILD)/shell.o: kernel/shell/shell.cpp | $(BUILD)
+$(BUILD)/shell.o: kernel/shell/shell.cpp | dirs
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-$(BUILD)/cmd_clear.o: kernel/cmds/clear.cpp | $(BUILD)
+$(BUILD)/cmd_clear.o: kernel/cmds/clear.cpp | dirs
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-$(BUILD)/cmd_reboot.o: kernel/cmds/reboot.cpp | $(BUILD)
+$(BUILD)/cmd_reboot.o: kernel/cmds/reboot.cpp | dirs
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-$(BUILD)/cmd_shutdown.o: kernel/cmds/shutdown.cpp | $(BUILD)
+$(BUILD)/cmd_shutdown.o: kernel/cmds/shutdown.cpp | dirs
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-$(BUILD)/cmd_registry.o: kernel/cmds/registry.cpp | $(BUILD)
+$(BUILD)/cmd_registry.o: kernel/cmds/registry.cpp | dirs
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-$(BUILD)/fs.o: kernel/fs/fs.cpp | $(BUILD)
+$(BUILD)/fs.o: kernel/fs/fs.cpp | dirs
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-$(BUILD)/cmd_ls.o: kernel/cmds/ls.cpp | $(BUILD)
+$(BUILD)/cmd_ls.o: kernel/cmds/ls.cpp | dirs
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-$(BUILD)/cmd_cat.o: kernel/cmds/cat.cpp | $(BUILD)
+$(BUILD)/cmd_cat.o: kernel/cmds/cat.cpp | dirs
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-$(BUILD)/cmd_touch.o: kernel/cmds/touch.cpp | $(BUILD)
+$(BUILD)/cmd_touch.o: kernel/cmds/touch.cpp | dirs
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-$(BUILD)/bootlogo.o: kernel/bootlogo/bootlogo.cpp | $(BUILD)
+$(BUILD)/bootlogo.o: kernel/bootlogo/bootlogo.cpp | dirs
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-$(BUILD)/pit.o: kernel/drivers/pit.cpp | $(BUILD)
+$(BUILD)/pit.o: kernel/drivers/pit.cpp | dirs
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-$(BUILD)/load.o: kernel/debug/load.cpp | $(BUILD)
+$(BUILD)/load.o: kernel/debug/load.cpp | dirs
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-$(BUILD)/serial.o: kernel/drivers/serial.cpp | $(BUILD)
+$(BUILD)/serial.o: kernel/drivers/serial.cpp | dirs
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-$(BUILD)/rtc.o: kernel/drivers/rtc.cpp | $(BUILD)
+$(BUILD)/rtc.o: kernel/drivers/rtc.cpp | dirs
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-$(BUILD)/clock.o: kernel/time/clock.cpp | $(BUILD)
+$(BUILD)/clock.o: kernel/time/clock.cpp | dirs
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-$(BUILD)/cmd_date.o: kernel/cmds/date.cpp | $(BUILD)
+$(BUILD)/cmd_date.o: kernel/cmds/date.cpp | dirs
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-$(BUILD)/speaker.o: kernel/drivers/speaker.cpp | $(BUILD)
+$(BUILD)/speaker.o: kernel/drivers/speaker.cpp | dirs
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-$(BUILD)/cmd_beep.o: kernel/cmds/beep.cpp | $(BUILD)
+$(BUILD)/cmd_beep.o: kernel/cmds/beep.cpp | dirs
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-$(BUILD)/audio.o: kernel/drivers/audio/audio.cpp | $(BUILD)
+$(BUILD)/audio.o: kernel/drivers/audio/audio.cpp | dirs
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-$(BUILD)/shortcuts.o: kernel/shortcuts/shortcuts.cpp | $(BUILD)
+$(BUILD)/shortcuts.o: kernel/shortcuts/shortcuts.cpp | dirs
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-$(BUILD)/string.o: kernel/string.cpp | $(BUILD)
+$(BUILD)/string.o: kernel/string.cpp | dirs
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-$(BUILD)/cmd_play.o: kernel/cmds/play.cpp | $(BUILD)
+$(BUILD)/cmd_play.o: kernel/cmds/play.cpp | dirs
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-$(BUILD)/mlb.o: kernel/mlb/mlb.cpp | $(BUILD)
+$(BUILD)/mlb.o: kernel/mlb/mlb.cpp | dirs
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-$(BUILD)/mouse.o: kernel/drivers/mouse.cpp | $(BUILD)
+$(BUILD)/mouse.o: kernel/drivers/mouse.cpp | dirs
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-$(BUILD)/keyboard_buffer.o: kernel/input/keyboard_buffer.cpp | $(BUILD)
+$(BUILD)/keyboard_buffer.o: kernel/input/keyboard_buffer.cpp | dirs
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-$(BUILD)/keymap.o: kernel/keyboard/keymap.c | $(BUILD)
+$(BUILD)/keymap.o: kernel/keyboard/keymap.c | dirs
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(BUILD)/keymap_us.o: kernel/keyboard/keymap_us.c | $(BUILD)
+$(BUILD)/keymap_us.o: kernel/keyboard/keymap_us.c | dirs
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(BUILD)/keymap_ro.o: kernel/keyboard/keymap_ro.c | $(BUILD)
+$(BUILD)/keymap_ro.o: kernel/keyboard/keymap_ro.c | dirs
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(BUILD)/vga.o: kernel/video/vga.c | $(BUILD)
+$(BUILD)/vga.o: kernel/video/vga.c | dirs
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(BUILD)/timer.o: kernel/time/timer.c | $(BUILD)
+$(BUILD)/timer.o: kernel/time/timer.c | dirs
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(BUILD)/cmd_uptime.o: kernel/cmds/uptime.cpp | $(BUILD)
+$(BUILD)/cmd_uptime.o: kernel/cmds/uptime.cpp | dirs
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-$(BUILD)/cmd_ticks.o: kernel/cmds/ticks.cpp | $(BUILD)
+$(BUILD)/cmd_ticks.o: kernel/cmds/ticks.cpp | dirs
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-$(BUILD)/cmd_help.o: kernel/cmds/help.cpp | $(BUILD)
+$(BUILD)/cmd_help.o: kernel/cmds/help.cpp | dirs
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-$(BUILD)/event_queue.o: kernel/events/event_queue.c | $(BUILD)
+$(BUILD)/event_queue.o: kernel/events/event_queue.c | dirs
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(BUILD)/disk.o: kernel/cmds/disk.cpp | $(BUILD)
+$(BUILD)/disk.o: kernel/cmds/disk.cpp | dirs
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-$(BUILD)/cmd_fat.o: kernel/cmds/fat.cpp | $(BUILD)
+$(BUILD)/cmd_fat.o: kernel/cmds/fat.cpp | dirs
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-$(BUILD)/vfs.o: kernel/fs/vfs/vfs.c | $(BUILD)
+$(BUILD)/vfs.o: kernel/fs/vfs/vfs.c | dirs
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(BUILD)/ramfs.o: kernel/fs/ramfs/ramfs.c | $(BUILD)
+$(BUILD)/ramfs.o: kernel/fs/ramfs/ramfs.c | dirs
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(BUILD)/cmd_vfs.o: kernel/cmds/vfs.cpp | $(BUILD)
+$(BUILD)/cmd_vfs.o: kernel/cmds/vfs.cpp | dirs
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-$(BUILD)/user.o: kernel/user/user.cpp | $(BUILD)
+$(BUILD)/user.o: kernel/user/user.cpp | dirs
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-$(BUILD)/cmd_login.o: kernel/cmds/login.cpp | $(BUILD)
+$(BUILD)/cmd_login.o: kernel/cmds/login.cpp | dirs
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-$(BUILD)/panic.o: kernel/panic.cpp kernel/panic.h | $(BUILD)
+$(BUILD)/panic.o: kernel/panic.cpp kernel/panic.h | dirs
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-$(BUILD)/cmd_crash.o: kernel/cmds/crash.cpp kernel/cmds/crash.h | $(BUILD)
+$(BUILD)/cmd_crash.o: kernel/cmds/crash.cpp kernel/cmds/crash.h | dirs
 	$(CXX) $(CXXFLAGS) -c $< -o $@
-
-$(BUILD)/vmm.o: kernel/mm/vmm.c | $(BUILD)
-	$(CC) $(CFLAGS) -c $< -o $@
 
 # -------------------------
 # C OBJECTS (folosim gcc)
 # -------------------------
 
-$(BUILD)/ata.o: kernel/storage/ata.c | $(BUILD)
+$(BUILD)/ata.o: kernel/storage/ata.c | dirs
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(BUILD)/fat_fs.o: kernel/fs/fat/fat.c | $(BUILD)
+$(BUILD)/fat_fs.o: kernel/fs/fat/fat.c | dirs
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(BUILD)/pmm.o: kernel/memory/pmm.c | $(BUILD)
+$(BUILD)/pmm.o: kernel/memory/pmm.c | dirs
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(BUILD)/cmd_pmm.o: kernel/cmds/pmm.cpp | $(BUILD)
+$(BUILD)/cmd_pmm.o: kernel/cmds/pmm.cpp | dirs
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-$(BUILD)/paging.o: kernel/paging.c kernel/paging.h | $(BUILD)
+$(BUILD)/paging.o: kernel/paging.c kernel/paging.h | dirs
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(BUILD)/mem/%.o: kernel/mem/%.c | $(BUILD)
+$(BUILD)/mem/%.o: kernel/mem/%.c | dirs
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -Ikernel/include -ffreestanding -c $< -o $@
 
-$(BUILD)/panic_sys.o: kernel/panic_sys.c | $(BUILD)
+$(BUILD)/panic_sys.o: kernel/panic_sys.c | dirs
 	$(CC) $(CFLAGS) -c $< -o $@
 
-
-build/user_prog.bin: kernel/user/user_prog.S
+build/user_prog.bin: kernel/user/user_prog.S | dirs
 	$(AS) -f bin $< -o $@
 
-$(BUILD)/user_blob.o: kernel/user/user_blob.c build/user_prog.bin | $(BUILD)
+$(BUILD)/user_blob.o: kernel/user/user_blob.c build/user_prog.bin | dirs
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-$(BUILD)/cmd_mem.o: kernel/cmds/mem.cpp | $(BUILD)
+$(BUILD)/cmd_mem.o: kernel/cmds/mem.cpp | dirs
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-$(BUILD)/address_space.o: kernel/mm/address_space.c | $(BUILD)
+$(BUILD)/address_space.o: kernel/mm/address_space.c | dirs
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(BUILD)/user_mem.o: kernel/mm/user_mem.c | $(BUILD)
+$(BUILD)/user_mem.o: kernel/mm/user_mem.c | dirs
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(BUILD)/copy_user.o: kernel/mm/copy_user.c | $(BUILD)
+$(BUILD)/copy_user.o: kernel/mm/copy_user.c | dirs
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(BUILD)/vmm.o: kernel/mm/vmm.c | $(BUILD)
+$(BUILD)/vmm.o: kernel/mm/vmm.c | dirs
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(BUILD)/mm/paging.o: kernel/mm/paging.c | $(BUILD)
+$(BUILD)/mm/paging.o: kernel/mm/paging.c | dirs
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(BUILD)/load_cr3.o: arch/x86/load_cr3.S | $(BUILD)
+$(BUILD)/load_cr3.o: arch/x86/load_cr3.S | dirs
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(BUILD)/task/%.o: kernel/task/%.c
+$(BUILD)/task/%.o: kernel/task/%.c | dirs
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -Ikernel/include -c $< -o $@
 
 # compile assembly (AT&T) for i386
-$(BUILD)/arch/%.o: arch/i386/%.S
+$(BUILD)/arch/%.o: arch/i386/%.S | dirs
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -m32 -ffreestanding -c $< -o $@
 
-
-$(BUILD)/sched/pcb.o: kernel/sched/pcb.c kernel/sched/pcb.h
+$(BUILD)/sched/pcb.o: kernel/sched/pcb.c kernel/sched/pcb.h | dirs
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -m32 -c $< -o $@
 
-$(BUILD)/sched/scheduler.o: kernel/sched/scheduler.c kernel/sched/scheduler.h kernel/sched/pcb.h
+$(BUILD)/sched/scheduler.o: kernel/sched/scheduler.c kernel/sched/scheduler.h kernel/sched/pcb.h | dirs
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -m32 -c $< -o $@
 
-$(BUILD)/ram.o: kernel/detect/ram.c
+$(BUILD)/ram.o: kernel/detect/ram.c | dirs
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(BUILD)/tpm.o: kernel/detect/tpm.c
+$(BUILD)/tpm.o: kernel/detect/tpm.c | dirs
 	$(CC) $(CFLAGS) -Ikernel/include -c $< -o $@
 
-$(BUILD)/videomemory.o: kernel/detect/videomemory.c
+$(BUILD)/videomemory.o: kernel/detect/videomemory.c | dirs
 	$(CC) $(CFLAGS) -Ikernel/include -c $< -o $@
 
-$(BUILD)/cmd_credits.o: kernel/cmds/credits.cpp
+$(BUILD)/cmd_credits.o: kernel/cmds/credits.cpp | dirs
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-
-$(BUILD)/cmd_echo.o: kernel/cmds/echo.cpp
+$(BUILD)/cmd_echo.o: kernel/cmds/echo.cpp | dirs
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-$(BUILD)/cmd_fortune.o: kernel/cmds/fortune.cpp
+$(BUILD)/cmd_fortune.o: kernel/cmds/fortune.cpp | dirs
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-$(BUILD)/cmd_buildinfo.o: kernel/cmds/buildinfo.cpp
+$(BUILD)/cmd_buildinfo.o: kernel/cmds/buildinfo.cpp | dirs
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-$(BUILD)/cmd_sysfetch.o: kernel/cmds/sysfetch.cpp
+$(BUILD)/cmd_sysfetch.o: kernel/cmds/sysfetch.cpp | dirs
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-$(BUILD)/cmd_chrysver.o: kernel/cmds/chrysver.cpp
+$(BUILD)/cmd_chrysver.o: kernel/cmds/chrysver.cpp | dirs
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-build/arch/tss.o: kernel/arch/i386/tss.c
+$(BUILD)/arch/tss.o: kernel/arch/i386/tss.c | dirs
 	$(CC) $(CFLAGS) -c $< -o $@
 
-build/arch/tss_flush.o: kernel/arch/i386/tss_flush.S
+$(BUILD)/arch/tss_flush.o: kernel/arch/i386/tss_flush.S | dirs
 	$(AS) $(ASFLAGS) $< -o $@
 
-$(BUILD)/arch/syscall.o: kernel/arch/i386/syscall.c
+$(BUILD)/arch/syscall.o: kernel/arch/i386/syscall.c | dirs
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(BUILD)/arch/syscall_asm.o: kernel/arch/i386/syscall.S
-	nasm -f elf32 $< -o $@
+$(BUILD)/arch/syscall_asm.o: kernel/arch/i386/syscall.S | dirs
+	$(AS) $(ASFLAGS) $< -o $@
 
-build/arch/isr_default.o: kernel/arch/i386/isr_default.S
-	nasm -f elf32 $< -o $@
+$(BUILD)/arch/isr_default.o: kernel/arch/i386/isr_default.S | dirs
+	$(AS) $(ASFLAGS) $< -o $@
 
-build/arch/syscall_dispatch.o: kernel/arch/i386/syscall_dispatch.c
+$(BUILD)/arch/syscall_dispatch.o: kernel/arch/i386/syscall_dispatch.c | dirs
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(BUILD)/elf.o: kernel/elf/elf.c
+$(BUILD)/elf.o: kernel/elf/elf.c | dirs
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(BUILD)/process.o: kernel/proc/process.c
+$(BUILD)/process.o: kernel/proc/process.c | dirs
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(BUILD)/exec.o: kernel/proc/exec.c
+$(BUILD)/exec.o: kernel/proc/exec.c | dirs
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(BUILD)/stubs/exec_fallbacks.o: kernel/stubs/exec_fallbacks.c
+$(BUILD)/stubs/exec_fallbacks.o: kernel/stubs/exec_fallbacks.c | dirs
 	$(CC) $(CFLAGS) -c $< -o $@
+
+$(BUILD)/cmds/elf.o: kernel/cmds/elf.cpp | dirs
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+$(BUILD)/cmds/elf_debug.o: kernel/cmds/elf_debug.cpp | dirs
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+$(BUILD)/cmds/elf_crash.o: kernel/cmds/elf_crash.cpp | dirs
+	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 # -------------------------
 # LINK
 # -------------------------
 
-$(ISO)/boot/$(KERNEL): $(OBJS)
+$(ISO)/boot/$(KERNEL): $(OBJS) | dirs
 	@mkdir -p $(dir $@)
 	$(LD) $(LDFLAGS) -o $@ $(OBJS)
 
