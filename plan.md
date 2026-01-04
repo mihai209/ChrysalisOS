@@ -69,7 +69,7 @@
 | ✅     | kernel threads        |               |
 | ✅     | user mode             | ring 3        |
 | ✅     | syscalls (`int 0x80`) |               |
-| 🔲     | ELF loader            |               |
+| ✅     | ELF loader            |               |
 | 🔲     | exec()                |               |
 
 🔴 NIVEL 6 — Hardware avansat
