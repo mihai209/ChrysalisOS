@@ -109,7 +109,9 @@ OBJS = \
     build/arch/tss_flush.o \
 	$(BUILD)/arch/syscall.o \
     $(BUILD)/arch/syscall_asm.o \
-	build/arch/isr_default.o
+	build/arch/isr_default.o \
+	build/arch/syscall_dispatch.o
+
 
 # -------------------------
 # TARGETURI PRINCIPALE
@@ -411,6 +413,9 @@ $(BUILD)/arch/syscall_asm.o: kernel/arch/i386/syscall.S
 
 build/arch/isr_default.o: kernel/arch/i386/isr_default.S
 	nasm -f elf32 $< -o $@
+
+build/arch/syscall_dispatch.o: kernel/arch/i386/syscall_dispatch.c
+	$(CC) $(CFLAGS) -c $< -o $@
 
 # -------------------------
 # LINK

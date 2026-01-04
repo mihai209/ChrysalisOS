@@ -6,6 +6,7 @@
 extern "C" void irq0();
 extern "C" void irq1();
 extern "C" void isr_default();   // fallback generic ASM handler
+extern "C" void syscall_handler();
 
 static IDTEntry idt[256];
 static IDTPointer idtp;
@@ -48,6 +49,15 @@ extern "C" void idt_init()
     /* Overwrite cu IRQ-urile tale reale după remap PIC (32/33 etc) */
     idt_set_gate(32, (uint32_t)irq0, 0x08, 0x8E);
     idt_set_gate(33, (uint32_t)irq1, 0x08, 0x8E);
+        /* Syscall gate: int 0x80 (ring 3 allowed) */
+    idt_set_gate(0x80, (uint32_t)syscall_handler, 0x08, 0xEE);
+    idt_set_gate(
+    0x80,
+    (uint32_t)syscall_handler,
+    0x08,      // kernel code segment
+    0xEE       // PRESENT | DPL=3 | 32-bit interrupt gate
+);
+
 
     /* Dacă vei instala syscall gate cu DPL=3, o vei seta altfel (0xEE). */
 

@@ -416,6 +416,33 @@ extern "C" void kernel_main(uint32_t magic, uint32_t addr) {
 
 
 
+static const char msg[] = "hello from syscall";
+
+asm volatile(
+    "movl $1, %%eax\n"    /* SYS_WRITE */
+    "movl %0, %%ebx\n"
+    "int $0x80\n"
+    :
+    : "r"(msg)            /* %0 = pointer la msg */
+    : "eax", "ebx"
+);
+
+
+// definește string-ul (scope file-local e OK)
+//static const char test_msg[] = "Hello from syscall!";
+
+/* ...în kernel_main, în loc de mov $test_msg, %%ebx ... */
+/*asm volatile(
+    "movl $1, %%eax\n"        // SYS_WRITE
+    "movl %0, %%ebx\n"
+    "int $0x80\n"
+    :
+    : "r"(test_msg)           // %0 = pointer la test_msg
+    : "eax", "ebx"
+);*/
+
+
+
     // 22) Main loop: shell polling + halt (no unsafe yields)
     // If you want the shell to be preempted by tasks, move shell into its own
     // task and enable TASKS_ENABLED after implementing a safe switch_to.

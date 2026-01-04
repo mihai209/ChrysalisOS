@@ -68,3 +68,16 @@ https://opensource.org/license/mit
 | Kernel data   | `0x92` |
 | **User code** | `0xFA` |
 | **User data** | `0xF2` |
+
+
+0xEE = 1110 1110b
+        ││││ └─ type = 32-bit interrupt gate
+        │││└── DPL = 3 (user mode allowed)
+        ││└── present
+
+
+zero IDT
+fallback pe toate intrările
+IRQ 0 / 1
+syscall 0x80 (DPL=3)
+lidt

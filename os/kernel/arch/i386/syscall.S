@@ -1,16 +1,18 @@
-; kernel/arch/i386/syscall.S  -- NASM syntax (elf32)
+; kernel/arch/i386/syscall.S
 BITS 32
-extern panic
 global syscall_handler
-section .text
+extern syscall_dispatch
 
+section .text
 syscall_handler:
     cli
-    push dword syscall_handler_msg
-    call panic
-    add esp, 4
-    hlt
 
-section .rodata
-syscall_handler_msg:
-    db "Syscall invoked but not implemented", 0
+    push ebx        ; arg1 (pointer la string)
+    push eax        ; syscall number
+
+    call syscall_dispatch
+
+    add esp, 8
+
+    sti
+    iretd
