@@ -77,7 +77,7 @@
 
 | Status | Componentă       |
 | ------ | ---------------- |
-| 🔲     | PCI bus          |
+| ✅     | PCI bus          |
 | 🔲     | ACPI             |
 | 🔲     | APIC / IOAPIC    |
 | 🔲     | SMP (multi-core) |
