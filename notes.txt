@@ -48,3 +48,14 @@ nm build/mem/kmalloc.o | grep kmalloc_init || true
 [EAX]
 [EFLAGS]
 [RETURN_EIP]
+
+
+swtpm socket --tpmstate dir=tpm \
+             --ctrl type=unixio,path=swtpm.sock \
+             --tpm2=false &
+
+qemu-system-i386 \
+  -chardev socket,id=chrtpm,path=swtpm.sock \
+  -tpmdev emulator,id=tpm0,chardev=chrtpm \
+  -device tpm-tis,tpmdev=tpm0 \
+  -m 64

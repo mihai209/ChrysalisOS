@@ -41,6 +41,8 @@
 #include "sched/scheduler.h"
 #include "sched/pcb.h"
 #include "detect/ram.h"
+#include "detect/tpm.h"
+
 
 // ===== TASK SUBSYSTEM FALLBACK (in-file, no external headers) =====
 //
@@ -212,6 +214,7 @@ extern "C" void kernel_main(uint32_t magic, uint32_t addr) {
 
     // 3) Early boot safety check: detect RAM and panic cleanly if insufficient
     ram_check_or_panic(magic, addr);
+    tpm_check_or_panic();
 
     // 4) CPU/interrupt basic setup: GDT -> IDT -> PIC. Order matters.
     gdt_init();

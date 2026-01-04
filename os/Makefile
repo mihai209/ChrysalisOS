@@ -97,6 +97,8 @@ OBJS = \
 	$(BUILD)/sched/pcb.o \
     $(BUILD)/sched/scheduler.o \
 	$(BUILD)/ram.o \
+	$(BUILD)/tpm.o
+
 
 # -------------------------
 # TARGETURI PRINCIPALE
@@ -355,6 +357,9 @@ $(BUILD)/sched/scheduler.o: kernel/sched/scheduler.c kernel/sched/scheduler.h ke
 
 $(BUILD)/ram.o: kernel/detect/ram.c
 	$(CC) $(CFLAGS) -c $< -o $@
+
+$(BUILD)/tpm.o: kernel/detect/tpm.c
+	$(CC) $(CFLAGS) -Ikernel/include -c $< -o $@
 
 # -------------------------
 # LINK
