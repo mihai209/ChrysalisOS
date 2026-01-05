@@ -1,5 +1,6 @@
 #pragma once
 #include <stdint.h>
+#include <stdbool.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -18,6 +19,9 @@ extern volatile int cpu_count;
 
 /* Detects CPUs from ACPI MADT */
 void smp_detect_cpus(void);
+
+/* Prepares trampoline code and data for APs */
+bool smp_prepare_aps(void);
 
 /* Starts all Application Processors (APs) */
 void smp_start_aps(void);

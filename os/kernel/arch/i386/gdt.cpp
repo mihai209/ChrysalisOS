@@ -20,14 +20,8 @@ uint8_t base_high;
 } __attribute__((packed));
 
 
-struct gdt_ptr {
-uint16_t limit;
-uint32_t base;
-} __attribute__((packed));
-
-
 static gdt_entry gdt[6];
-static gdt_ptr gp;
+static gdt_ptr_t gp;
 
 
 /*
@@ -78,4 +72,8 @@ gdt_set_gate(4, 0, 0xFFFFFFFF, 0xF2, 0xCF);
 
 
 gdt_flush((uint32_t)&gp);
+}
+
+extern "C" void gdt_get_ptr(gdt_ptr_t* out) {
+    asm volatile("sgdt %0" : "=m"(*out));
 }

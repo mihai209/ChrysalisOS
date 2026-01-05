@@ -46,7 +46,7 @@ void lapic_send_ipi(uint8_t apic_id, uint32_t type, uint8_t vector) {
     // Type: 0=Fixed, 5=INIT, 6=SIPI
     // Level: 1=Assert
     // Trigger: 0=Edge
-    uint32_t command = type | (1 << 14) | vector;
+    uint32_t command = (type << 8) | (1 << 14) | vector;
     lapic_write(LAPIC_ICR_LO, command);
 
     // Wait for delivery status to be idle again

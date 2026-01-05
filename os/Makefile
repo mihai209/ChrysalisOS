@@ -126,6 +126,7 @@ OBJS = \
 	$(BUILD)/hardware/lapic.o \
 	$(BUILD)/hardware/ioapic.o \
 	$(BUILD)/smp/smp.o \
+	$(BUILD)/smp/trampoline_obj.o \
 
 
 
@@ -497,11 +498,12 @@ $(BUILD)/smp/smp.o: kernel/smp/smp.c kernel/smp/smp.h | dirs
 
 # Rules for the trampoline
 # This creates a flat binary of the trampoline code
-$(BUILD)/smp/trampoline.bin: $(BUILD)/smp/trampoline.o
-	$(LD) -T kernel/smp/trampoline.ld -o $@ --oformat binary $^
+$(BUILD)/smp/trampoline.bin: kernel/smp/trampoline.S | dirs
+	$(AS) -f bin $< -o $@
 
-$(BUILD)/smp/trampoline.o: kernel/smp/trampoline.S | dirs
-	$(AS) $(ASFLAGS) $< -o $@
+# Convert binary trampoline to object file to link with kernel
+$(BUILD)/smp/trampoline_obj.o: $(BUILD)/smp/trampoline.bin
+	objcopy -I binary -O elf32-i386 -B i386 $< $@
 
 # Note: You will need to ensure trampoline.bin is available to the kernel, e.g., via GRUB module or embedding.
 

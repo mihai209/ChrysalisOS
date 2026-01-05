@@ -19,10 +19,10 @@ uint8_t base_high;
 } __attribute__((packed));
 
 
-struct GDTPointer {
+typedef struct {
 uint16_t limit;
 uint32_t base;
-} __attribute__((packed));
+} __attribute__((packed)) gdt_ptr_t;
 
 
 /* GDT API public */
@@ -32,6 +32,9 @@ void gdt_init(void);
 
 /* Expunem gdt_set_gate pentru a putea adauga TSS din tss.c */
 void gdt_set_gate(int num, uint32_t base, uint32_t limit, uint8_t access, uint8_t gran);
+
+/* Exportă GDTR-ul actual */
+void gdt_get_ptr(gdt_ptr_t* out);
 
 
 #ifdef __cplusplus

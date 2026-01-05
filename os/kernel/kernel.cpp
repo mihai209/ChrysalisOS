@@ -369,8 +369,10 @@ for (int i = 0; i < 5; i++) {
     apic_init();
 
     // SMP Initialization
-    smp_detect_cpus();
-    // smp_start_aps(); // TODO: Enable after trampoline is copied and GDT is ready
+    if (smp_prepare_aps()) {
+        smp_detect_cpus();
+        smp_start_aps();
+    }
 
     // 19) Heap + buddy allocator + kmalloc
     extern uint8_t __heap_start;
