@@ -225,16 +225,6 @@ static void panic_if_fatal(const char *msg)
     panic("Kernel detected fatal error; halting.");
 }
 
-/* Default IRQ handler that matches irq_handler_t (registers_t*) expected by irq_install_handler.
-   It simply logs the IRQ number — irq.cpp will send EOI after calling this handler. */
-static void default_irq_handler(registers_t* regs)
-{
-    (void)regs;
-    terminal_writestring("[irq] unhandled irq ");
-    terminal_writehex((uint32_t)regs->int_no);
-    terminal_writestring("\n");
-}
-
 // -----------------------------
 // kernel_main - entry point
 // -----------------------------
@@ -269,13 +259,8 @@ extern "C" void kernel_main(uint32_t magic, uint32_t addr) {
     idt_init();
     pic_remap();
 
-irq_install();
-
-/* Register default handler for IRQs 0..15 */
-// Instalăm handlerele default PRIMELE, ca să nu suprascriem driverele ulterior
-for (int i = 0; i < 16; i++) {
-    irq_install_handler(i, default_irq_handler);
-}
+    // Instalează stub-urile ASM și setează handler-ul default (silent) pentru toate IRQ-urile
+    irq_install();
 
 // 11) Timer abstraction (PIT) - install handlers (overwrites IRQ0)
     timer_init(100);

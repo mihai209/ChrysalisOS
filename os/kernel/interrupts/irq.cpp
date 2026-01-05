@@ -28,6 +28,13 @@ extern "C" {
     void irq15();
 }
 
+/* Handler implicit sigur: nu face nimic, doar permite trimiterea EOI.
+   Previne crash-urile cauzate de IRQ-uri neașteptate sau race-conditions la boot. */
+static void irq_default_stub(registers_t *r)
+{
+    (void)r;
+}
+
 /* Instalează stub-urile IRQ în IDT (intrările 32-47) */
 extern "C" void irq_install(void)
 {
@@ -47,6 +54,11 @@ extern "C" void irq_install(void)
     idt_set_gate(45, (uint32_t)irq13, 0x08, 0x8E);
     idt_set_gate(46, (uint32_t)irq14, 0x08, 0x8E);
     idt_set_gate(47, (uint32_t)irq15, 0x08, 0x8E);
+
+    /* Inițializăm toate sloturile cu stub-ul implicit */
+    for (int i = 0; i < 16; i++) {
+        irq_routines[i] = (void*)irq_default_stub;
+    }
 }
 
 extern "C" void irq_install_handler(int irq, void (*handler)(registers_t *r))
