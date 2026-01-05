@@ -62,6 +62,7 @@
 #include "interrupts/isr.h"
 #include "smp/smp.h"
 #include "hardware/hpet.h"
+#include "usb/usb_core.h"
 
 
 
@@ -122,6 +123,7 @@ __attribute__((weak)) void yield(void) { task_yield(); }
 #ifdef __cplusplus
 extern "C" {
 #endif
+void shell_handle_char(char c); /* Asigurăm vizibilitatea funcției */
 void shell_poll_input(void);
 #ifdef __cplusplus
 }
@@ -472,6 +474,9 @@ terminal_writestring("[kernel] initializing PCI\n");
 pci_init(); // DISABLED: Potential crash source
 //terminal_writestring("[kernel] pci_init skipped for stability\n");
 
+    /* Initialize USB Subsystem (UHCI) */
+    usb_core_init();
+
 /* BIOS + ACPI legacy areas */
 vmm_identity_map(0x00000000, 0x1000);      // BDA
 vmm_identity_map(0x000E0000, 0x20000);     // BIOS area
@@ -495,7 +500,15 @@ vmm_identity_map(0x000E0000, 0x20000);     // BIOS area
     // If you want the shell to be preempted by tasks, move shell into its own
     // task and enable TASKS_ENABLED after implementing a safe switch_to.
     while (1) {
-        shell_poll_input();   // non-blocking poll for shell input
+        usb_poll();           // Poll USB HID devices
+        
+        /* Procesăm manual bufferul de tastatură pentru a garanta că input-ul ajunge la shell */
+        while (kbd_has_char()) {
+            char c = kbd_get_char();
+            shell_handle_char(c);
+        }
+        
+        // shell_poll_input(); // Redundant acum, facem polling manual mai sus
 
 #if TASKS_ENABLED
         // If you truly want automated scheduling when TASKS_ENABLED==1, replace

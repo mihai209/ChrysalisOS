@@ -126,6 +126,11 @@ OBJS = \
 	$(BUILD)/hardware/lapic.o \
 	$(BUILD)/hardware/ioapic.o \
 	$(BUILD)/hardware/hpet.o \
+	$(BUILD)/usb/usb_core.o \
+	$(BUILD)/usb/uhci.o \
+	$(BUILD)/usb/usb_hid.o \
+	$(BUILD)/usb/usb_hub.o \
+	$(BUILD)/usb/usb_msc.o \
 	$(BUILD)/smp/smp.o \
 	$(BUILD)/smp/trampoline_obj.o \
 
@@ -493,6 +498,26 @@ $(BUILD)/hardware/ioapic.o: kernel/hardware/ioapic.c | dirs
 $(BUILD)/hardware/hpet.o: kernel/hardware/hpet.cpp | dirs
 	@mkdir -p $(BUILD)/hardware
 	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+$(BUILD)/usb/usb_core.o: kernel/usb/usb_core.c | dirs
+	@mkdir -p $(BUILD)/usb
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(BUILD)/usb/uhci.o: kernel/usb/uhci.c | dirs
+	@mkdir -p $(BUILD)/usb
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(BUILD)/usb/usb_hid.o: kernel/usb/usb_hid.c | dirs
+	@mkdir -p $(BUILD)/usb
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(BUILD)/usb/usb_hub.o: kernel/usb/usb_hub.c | dirs
+	@mkdir -p $(BUILD)/usb
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(BUILD)/usb/usb_msc.o: kernel/usb/usb_msc.c | dirs
+	@mkdir -p $(BUILD)/usb
+	$(CC) $(CFLAGS) -c $< -o $@
 
 # -------------------------
 # SMP & Trampoline
