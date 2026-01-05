@@ -212,5 +212,3 @@ but expectations should align with its experimental nature.
 **Current Version:** 0.0.1
 **Last Updated:** December 31, 2025
 
-```
-
