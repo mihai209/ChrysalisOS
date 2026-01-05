@@ -34,6 +34,9 @@ struct AcpiState {
 
 static AcpiState acpi_state = {0};
 
+/* Global APIC Info */
+struct ApicInfo apic_info = {0};
+
 /* ============================================================
    Internal Helpers
    ============================================================ */
@@ -75,33 +78,84 @@ static void acpi_io_outb(uint16_t port, uint8_t val) {
     outb(port, val);
 }
 
-/* 
- * Helper pentru a mapa o regiune fizică în spațiul virtual (identity map).
- * Gestionează alinierea la pagină (4KB) automat.
- */
-static void acpi_map_phys(uint32_t phys_addr, uint32_t size)
-{
-    if (phys_addr == 0 || size == 0) return;
+/* Avem nevoie de page directory pentru unmap. Presupunem simbolul standard. */
+extern "C" uint32_t* kernel_page_directory;
 
-    serial_write_string("[ACPI] Mapping phys: ");
-    serial_print_hex(phys_addr);
-    serial_write_string(" size: ");
-    serial_print_hex(size);
+// Zonă virtuală rezervată pentru mapări temporare ACPI (trebuie să fie liberă)
+// Alegem 0xE0000000 (3.5 GB), departe de kernel (0xC0000000) și heap.
+#define ACPI_TEMP_VIRT_BASE 0xE0000000
+
+/* 
+ * Helper pentru a mapa TEMPORAR o regiune fizică într-o zonă virtuală fixă.
+ * Returnează pointer virtual valid în spațiul kernelului.
+ */
+static void* acpi_map_temp(uint32_t phys_addr, uint32_t size)
+{
+    if (phys_addr == 0 || size == 0) return nullptr;
+
+    uint32_t phys_page = phys_addr & 0xFFFFF000;
+    uint32_t offset    = phys_addr & 0xFFF;
+    
+    uint32_t end_addr = phys_addr + size;
+    uint32_t end_page = (end_addr + 0xFFF) & 0xFFFFF000;
+    uint32_t map_size = end_page - phys_page;
+    uint32_t num_pages = map_size / 0x1000;
+
+    // Folosim zona fixă ACPI_TEMP_VIRT_BASE
+    // ATENȚIE: Această implementare simplă nu suportă re-entranță sau mapări multiple simultane
+    // care depășesc zona alocată, dar pentru ACPI init secvențial e ok.
+    // Totuși, pentru a permite mapări imbricate (ex: FADT mapat în timp ce RSDT e mapat),
+    // ar trebui să incrementăm baza. Aici simplificăm și presupunem că unmap se face corect.
+    // Pentru siguranță, vom folosi o variabilă statică pentru a avansa baza dacă e nevoie,
+    // sau pur și simplu mapăm la ACPI_TEMP_VIRT_BASE și sperăm că nu se suprapun.
+    // Dat fiind că acpi_init face unmap imediat, riscul e mic, dar RSDT rămâne mapat
+    // în timp ce iterăm. Deci avem nevoie de o bază dinamică simplă.
+    
+    static uint32_t current_virt_offset = 0;
+    uint32_t virt_addr = ACPI_TEMP_VIRT_BASE + current_virt_offset;
+
+    // Avansăm offset-ul pentru următoarea mapare (simplu bump allocator)
+    // Resetăm offset-ul dacă e prea mare (hacky, dar previne overflow la boot)
+    if (current_virt_offset > 0x100000) current_virt_offset = 0; 
+    current_virt_offset += map_size;
+
+    serial_write_string("[ACPI] map phys page: ");
+    serial_print_hex(phys_page);
+    serial_write_string(" -> virt page: ");
+    serial_print_hex(virt_addr);
+    serial_write_string("\r\n[ACPI] offset: ");
+    serial_print_hex(offset);
     serial_write_string("\r\n");
 
-    // Rotunjim în jos la începutul paginii (4KB)
-    uint32_t base = phys_addr & 0xFFFFF000;
-    // Calculăm sfârșitul
-    uint32_t end = phys_addr + size;
-    
-    // Calculăm dimensiunea aliniată (trebuie să acopere tot intervalul)
-    // (end + 0xFFF) & 0xFFFFF000 este sfârșitul rotunjit la următoarea pagină
-    uint32_t aligned_end = (end + 0xFFF) & 0xFFFFF000;
-    uint32_t aligned_size = aligned_end - base;
+    if (!kernel_page_directory) {
+        serial_write_string("[ACPI] CRITICAL: kernel_page_directory is NULL!\r\n");
+        return nullptr;
+    }
 
-    vmm_identity_map(base, aligned_size);
+    // Mapăm paginile fizice la adresa virtuală aleasă
+    for (uint32_t i = 0; i < num_pages; i++) {
+        vmm_map_page(kernel_page_directory, phys_page + i * 0x1000, virt_addr + i * 0x1000, 0x3); // Present, RW
+    }
     
-    serial_write_string("[ACPI] Map call finished.\r\n");
+    serial_write_string("[ACPI] map temp done\r\n");
+    return (void*)(virt_addr + offset);
+}
+
+/* Demontează maparea temporară pentru a nu polua spațiul virtual */
+static void acpi_unmap_temp(void* ptr, uint32_t size) {
+    uint32_t virt = (uint32_t)ptr;
+    
+    // Protecție: Unmap doar dacă e în zona noastră temporară
+    if (virt < ACPI_TEMP_VIRT_BASE) return;
+
+    uint32_t base = virt & 0xFFFFF000;
+    uint32_t end = virt + size;
+    uint32_t aligned_end = (end + 0xFFF) & 0xFFFFF000;
+
+    for (uint32_t addr = base; addr < aligned_end; addr += 0x1000) {
+        vmm_unmap_page(kernel_page_directory, addr);
+    }
+    serial_write_string("[ACPI] Unmapped temp region.\r\n");
 }
 
 /* Verifică suma de control a unui tabel ACPI */
@@ -157,16 +211,16 @@ static void acpi_parse_dsdt(uint32_t dsdt_addr) {
     acpi_log("Parsing DSDT for _S5_...");
     
     // Map header first
-    acpi_map_phys(dsdt_addr, sizeof(ACPISDTHeader));
-    ACPISDTHeader* h = (ACPISDTHeader*)dsdt_addr;
+    ACPISDTHeader* h = (ACPISDTHeader*)acpi_map_temp(dsdt_addr, sizeof(ACPISDTHeader));
     
     if (h->length < sizeof(ACPISDTHeader) || h->length > 0x100000) {
         acpi_log("Error: DSDT length invalid.");
+        acpi_unmap_temp(h, sizeof(ACPISDTHeader));
         return;
     }
 
     // Map full DSDT
-    acpi_map_phys(dsdt_addr, h->length);
+    acpi_map_temp(dsdt_addr, h->length);
     
     uint8_t* start = (uint8_t*)dsdt_addr + sizeof(ACPISDTHeader);
     uint8_t* end = (uint8_t*)dsdt_addr + h->length;
@@ -202,12 +256,14 @@ static void acpi_parse_dsdt(uint32_t dsdt_addr) {
                 serial_write_string(" TYPb: ");
                 serial_print_hex(acpi_state.slp_typb);
                 serial_write_string("\r\n");
+                acpi_unmap_temp((void*)dsdt_addr, h->length);
                 return;
             }
         }
         start++;
     }
     acpi_log("Warning: _S5_ not found in DSDT.");
+    acpi_unmap_temp((void*)dsdt_addr, h->length);
 }
 
 /* ============================================================
@@ -240,9 +296,14 @@ static void acpi_parse_fadt(ACPISDTHeader* h)
     acpi_log("Parsing FADT...");
     
     // Mapăm tot tabelul FADT
-    acpi_map_phys((uint32_t)h, h->length);
-    FADT* fadt = (FADT*)h;
+    uint32_t len = h->length;
+    uint32_t phys = (uint32_t)h;
+    FADT* fadt = (FADT*)acpi_map_temp(phys, len);
     acpi_state.fadt = fadt;
+
+    uint32_t pages = (len + (phys & 0xFFF) + 0xFFF) / 0x1000;
+    serial_write_string("[ACPI] FADT length: "); serial_print_hex(len); serial_write_string("\r\n");
+    serial_write_string("[ACPI] FADT pages mapped: "); serial_print_hex(pages); serial_write_string("\r\n");
 
     // Store PM Blocks
     acpi_state.pm1a_cnt = fadt->pm1a_control_block;
@@ -286,19 +347,28 @@ static void acpi_parse_fadt(ACPISDTHeader* h)
     if (fadt->dsdt) {
         acpi_parse_dsdt(fadt->dsdt);
     }
+    
+    // Nu facem unmap la FADT imediat deoarece avem nevoie de pointerii din el (pm1a etc)
+    // TODO: Copiază datele și fă unmap. Momentan îl lăsăm mapat (leak mic).
 }
 
 static void acpi_parse_madt(ACPISDTHeader* h)
 {
     acpi_log("Parsing MADT...");
 
-    // Mapăm tot tabelul MADT
-    acpi_map_phys((uint32_t)h, h->length);
-    MADT* madt = (MADT*)h;
+    // Mapăm tot tabelul MADT (header-ul e deja mapat de caller, dar extindem maparea)
+    uint32_t len = h->length;
+    uint32_t phys = (uint32_t)h;
+    MADT* madt = (MADT*)acpi_map_temp(phys, len);
     acpi_state.madt = madt;
     acpi_state.lapic_addr = madt->local_apic_addr;
+    apic_info.lapic_addr = madt->local_apic_addr;
 
-    serial_write_string("[ACPI] Local APIC Addr: ");
+    uint32_t pages = (len + (phys & 0xFFF) + 0xFFF) / 0x1000;
+    serial_write_string("[ACPI] MADT length: "); serial_print_hex(len); serial_write_string("\r\n");
+    serial_write_string("[ACPI] MADT pages mapped: "); serial_print_hex(pages); serial_write_string("\r\n");
+
+    serial_write_string("[APIC] LAPIC @ ");
     serial_print_hex(madt->local_apic_addr);
     serial_write_string("\r\n");
 
@@ -329,12 +399,19 @@ static void acpi_parse_madt(ACPISDTHeader* h)
             case 1: // I/O APIC
             {
                 MADT_IOAPIC* ioapic = (MADT_IOAPIC*)record;
-                serial_write_string("  [MADT] I/O APIC   | ID: ");
-                serial_print_hex(ioapic->ioapic_id);
-                serial_write_string(" Addr: ");
+                serial_write_string("[APIC] IOAPIC @ ");
                 serial_print_hex(ioapic->ioapic_addr);
+                serial_write_string(" ID: ");
+                serial_print_hex(ioapic->ioapic_id);
                 serial_write_string("\r\n");
                 acpi_state.ioapic_count++;
+                
+                if (apic_info.ioapic_count < MAX_IOAPICS) {
+                    int idx = apic_info.ioapic_count++;
+                    apic_info.ioapics[idx].id = ioapic->ioapic_id;
+                    apic_info.ioapics[idx].addr = ioapic->ioapic_addr;
+                    apic_info.ioapics[idx].gsi_base = ioapic->global_system_interrupt_base;
+                }
                 break;
             }
             case 2: // Interrupt Source Override
@@ -347,6 +424,14 @@ static void acpi_parse_madt(ACPISDTHeader* h)
                 serial_write_string(" -> GSI: ");
                 serial_print_hex(iso->global_system_interrupt);
                 serial_write_string("\r\n");
+                
+                if (apic_info.override_count < MAX_OVERRIDES) {
+                    int idx = apic_info.override_count++;
+                    apic_info.overrides[idx].bus = iso->bus_source;
+                    apic_info.overrides[idx].irq = iso->irq_source;
+                    apic_info.overrides[idx].gsi = iso->global_system_interrupt;
+                    apic_info.overrides[idx].flags = iso->flags;
+                }
                 break;
             }
             default:
@@ -354,6 +439,9 @@ static void acpi_parse_madt(ACPISDTHeader* h)
         }
         start += record->length;
     }
+    
+    // Demontăm maparea MADT
+    acpi_unmap_temp(madt, madt->h.length);
 }
 
 /* ============================================================
@@ -369,7 +457,7 @@ static RSDPDescriptor* acpi_scan_memory(uint32_t start, uint32_t length)
     serial_write_string("\r\n");
 
     // Mapează zona pe care urmează să o scanăm
-    acpi_map_phys(start, length);
+    acpi_map_temp(start, length);
 
     // Caută semnătura "RSD PTR " la fiecare 16 bytes
     for (uint32_t addr = start; addr < start + length; addr += 16) {
@@ -401,7 +489,7 @@ static RSDPDescriptor* acpi_find_rsdp(void)
     // Pointerul către EBDA se află la adresa fizică 0x40E
     
     // Mapează pagina 0 pentru a citi BDA
-    acpi_map_phys(0, 0x1000);
+    acpi_map_temp(0, 0x1000);
     
     uint16_t ebda_seg = *(uint16_t*)0x40E;
     uint32_t ebda_phys = (uint32_t)ebda_seg << 4;
@@ -424,12 +512,18 @@ static RSDPDescriptor* acpi_find_rsdp(void)
 
 void acpi_init(void)
 {
+    // DISABLE INTERRUPTS
+    asm volatile("cli");
+    serial_write_string("[ACPI] interrupts disabled\r\n");
+
     acpi_state.enabled = false;
     acpi_log("Initializing...");
 
     RSDPDescriptor* rsdp = acpi_find_rsdp();
     if (!rsdp) {
         acpi_log("Error: RSDP not found.");
+        serial_write_string("[ACPI] interrupts restored\r\n");
+        asm volatile("sti");
         return;
     }
 
@@ -441,49 +535,56 @@ void acpi_init(void)
     serial_write_string("[ACPI] RSDT Phys Addr: "); serial_print_hex(rsdt_phys); serial_write_string("\r\n");
     if (rsdt_phys == 0) {
         acpi_log("Error: RSDT address is NULL.");
-        return;
-    }
-
-    // FALLBACK CRITIC: Verificăm dacă RSDT este în zona mapată sigur (120MB)
-    // Adresa 0x07800000 = 120 MB. Dacă RSDT e mai sus, VMM-ul actual poate crăpa.
-    if (rsdt_phys >= 0x07800000) {
-        acpi_log("WARNING: RSDT address > 120MB (outside initial paging).");
-        acpi_log("Skipping ACPI init to prevent VMM crash/Kernel Panic.");
+        serial_write_string("[ACPI] interrupts restored\r\n");
+        asm volatile("sti");
         return;
     }
 
     // 1. Mapăm doar header-ul RSDT pentru a citi lungimea
-    acpi_map_phys(rsdt_phys, sizeof(ACPISDTHeader));
-    ACPISDTHeader* rsdt = (ACPISDTHeader*)rsdt_phys;
+    ACPISDTHeader* rsdt_header = (ACPISDTHeader*)acpi_map_temp(rsdt_phys, sizeof(ACPISDTHeader));
 
     // Validare semnătură RSDT
-    if (rsdt->signature[0] != 'R' || rsdt->signature[1] != 'S' || 
-        rsdt->signature[2] != 'D' || rsdt->signature[3] != 'T') {
+    if (rsdt_header->signature[0] != 'R' || rsdt_header->signature[1] != 'S' || 
+        rsdt_header->signature[2] != 'D' || rsdt_header->signature[3] != 'T') {
         acpi_log("Error: Invalid RSDT signature.");
+        acpi_unmap_temp(rsdt_header, sizeof(ACPISDTHeader));
+        serial_write_string("[ACPI] interrupts restored\r\n");
+        asm volatile("sti");
         return;
     }
 
+    uint32_t rsdt_len = rsdt_header->length;
+    acpi_unmap_temp(rsdt_header, sizeof(ACPISDTHeader)); // Unmap initial
+
     // Validare lungime (sanity check: max 4MB)
-    if (rsdt->length > 0x400000) {
-        terminal_printf("[acpi] Error: RSDT length too big (%d)\n", rsdt->length);
+    if (rsdt_len > 0x400000) {
+        terminal_printf("[acpi] Error: RSDT length too big (%d)\n", rsdt_len);
         serial_write_string("[ACPI] Error: RSDT length too big.\r\n");
+        serial_write_string("[ACPI] interrupts restored\r\n");
+        asm volatile("sti");
         return;
     }
 
     // 2. Mapăm tot tabelul RSDT acum că știm lungimea corectă
-    acpi_map_phys(rsdt_phys, rsdt->length);
+    ACPISDTHeader* rsdt = (ACPISDTHeader*)acpi_map_temp(rsdt_phys, rsdt_len);
+    
+    uint32_t pages = (rsdt_len + (rsdt_phys & 0xFFF) + 0xFFF) / 0x1000;
+    serial_write_string("[ACPI] RSDT length: "); serial_print_hex(rsdt_len); serial_write_string("\r\n");
+    serial_write_string("[ACPI] RSDT pages mapped: "); serial_print_hex(pages); serial_write_string("\r\n");
 
-    if (!acpi_checksum(rsdt, rsdt->length)) {
+    if (!acpi_checksum(rsdt, rsdt_len)) {
         acpi_log("Error: RSDT checksum failed.");
+        acpi_unmap_temp(rsdt, rsdt_len);
+        serial_write_string("[ACPI] interrupts restored\r\n");
+        asm volatile("sti");
         return;
     }
 
-    terminal_printf("[acpi] RSDT at 0x%x mapped, Length: %d\n", rsdt_phys, rsdt->length);
-    acpi_log("RSDT mapped and validated.");
+    terminal_printf("[acpi] RSDT at 0x%x mapped, Length: %d\n", rsdt_phys, rsdt_len);
+    acpi_log("RSDT mapped temporarily.");
 
     // Iterăm prin intrările RSDT
-    // Header-ul are 36 bytes. Intrările sunt pointeri de 32-bit (4 bytes).
-    int entries = (rsdt->length - sizeof(ACPISDTHeader)) / 4;
+    int entries = (rsdt_len - sizeof(ACPISDTHeader)) / 4;
     uint32_t* table_ptrs = (uint32_t*)((uint8_t*)rsdt + sizeof(ACPISDTHeader));
 
     for (int i = 0; i < entries; i++) {
@@ -491,8 +592,7 @@ void acpi_init(void)
         if (table_phys == 0) continue;
 
         // Mapăm header-ul tabelului pentru a-i vedea semnătura
-        acpi_map_phys(table_phys, sizeof(ACPISDTHeader));
-        ACPISDTHeader* header = (ACPISDTHeader*)table_phys;
+        ACPISDTHeader* header = (ACPISDTHeader*)acpi_map_temp(table_phys, sizeof(ACPISDTHeader));
 
         // Afișăm semnătura (ex: FACP, APIC)
         char sig[5];
@@ -513,9 +613,16 @@ void acpi_init(void)
         else if (sig[0] == 'F' && sig[1] == 'A' && sig[2] == 'C' && sig[3] == 'P') {
             acpi_parse_fadt(header);
         }
+        
+        // Unmap header (dacă parserul a mapat tot tabelul, el a făcut unmap la tot, deci e ok)
+        acpi_unmap_temp(header, sizeof(ACPISDTHeader));
     }
 
+    acpi_unmap_temp(rsdt, rsdt_len);
     acpi_log("Initialization complete.");
+
+    serial_write_string("[ACPI] interrupts restored\r\n");
+    asm volatile("sti");
 }
 
 void acpi_shutdown(void) {

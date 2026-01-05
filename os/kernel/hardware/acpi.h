@@ -104,6 +104,30 @@ struct FADT {
     uint8_t  century;
 } __attribute__((packed));
 
+/* --- APIC Parsed Info (Global) --- */
+#define MAX_IOAPICS 4
+#define MAX_OVERRIDES 16
+
+struct ApicInfo {
+    uint32_t lapic_addr;
+    struct {
+        uint8_t id;
+        uint32_t addr;
+        uint32_t gsi_base;
+    } ioapics[MAX_IOAPICS];
+    uint8_t ioapic_count;
+    
+    struct {
+        uint8_t bus;
+        uint8_t irq;
+        uint32_t gsi;
+        uint16_t flags;
+    } overrides[MAX_OVERRIDES];
+    uint8_t override_count;
+};
+
+extern struct ApicInfo apic_info;
+
 /* Inițializează subsistemul ACPI:
    - Caută RSDP
    - Parsează RSDT
