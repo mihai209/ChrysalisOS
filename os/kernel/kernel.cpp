@@ -61,6 +61,7 @@
 #include "interrupts/irq.h"
 #include "interrupts/isr.h"
 #include "smp/smp.h"
+#include "hardware/hpet.h"
 
 
 
@@ -365,6 +366,9 @@ for (int i = 0; i < 5; i++) {
     // because they rely on vmm_map_page / kernel_page_directory.
     acpi_init();
     terminal_writestring("[kernel] acpi_init called\n");
+
+    /* Initialize HPET (High Precision Event Timer) */
+    hpet_init();
 
     apic_init();
 

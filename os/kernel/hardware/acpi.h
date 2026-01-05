@@ -151,6 +151,9 @@ bool acpi_is_enabled(void);
 /* Returnează pointer la tabela MADT parsat (sau NULL) */
 void* acpi_get_madt(void);
 
+/* Caută un tabel ACPI după semnătură (ex: "HPET") și returnează un pointer mapat temporar */
+void* acpi_find_table(const char* signature);
+
 #ifdef __cplusplus
 }
 #endif

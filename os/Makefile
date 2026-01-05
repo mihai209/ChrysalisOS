@@ -125,6 +125,7 @@ OBJS = \
 	$(BUILD)/hardware/apic.o \
 	$(BUILD)/hardware/lapic.o \
 	$(BUILD)/hardware/ioapic.o \
+	$(BUILD)/hardware/hpet.o \
 	$(BUILD)/smp/smp.o \
 	$(BUILD)/smp/trampoline_obj.o \
 
@@ -486,6 +487,10 @@ $(BUILD)/hardware/lapic.o: kernel/hardware/lapic.c | dirs
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 $(BUILD)/hardware/ioapic.o: kernel/hardware/ioapic.c | dirs
+	@mkdir -p $(BUILD)/hardware
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+$(BUILD)/hardware/hpet.o: kernel/hardware/hpet.cpp | dirs
 	@mkdir -p $(BUILD)/hardware
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 

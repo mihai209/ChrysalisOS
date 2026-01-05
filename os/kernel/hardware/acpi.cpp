@@ -26,6 +26,7 @@ struct AcpiState {
     uint8_t cpu_count;
     uint8_t ioapic_count;
     uint32_t lapic_addr;
+    uint32_t rsdt_phys;
     
     // Pointers
     FADT* fadt;
@@ -558,6 +559,7 @@ void acpi_init(void)
     // Verificăm adresa RSDT
     uint32_t rsdt_phys = rsdp->rsdt_address;
     serial_write_string("[ACPI] RSDT Phys Addr: "); serial_print_hex(rsdt_phys); serial_write_string("\r\n");
+    acpi_state.rsdt_phys = rsdt_phys;
     if (rsdt_phys == 0) {
         acpi_log("Error: RSDT address is NULL.");
         // serial_write_string("[ACPI] interrupts restored\r\n");
@@ -698,4 +700,47 @@ bool acpi_is_enabled(void) {
 void* acpi_get_madt(void) {
     // Returnează NULL dacă MADT nu a fost parsat cu succes
     return (void*)acpi_state.madt;
+}
+
+extern "C" void* acpi_find_table(const char* signature) {
+    if (!acpi_state.rsdt_phys) return nullptr;
+
+    // 1. Mapăm header-ul RSDT pentru a afla lungimea
+    ACPISDTHeader* rsdt_header = (ACPISDTHeader*)acpi_map_temp(acpi_state.rsdt_phys, sizeof(ACPISDTHeader));
+    if (!rsdt_header) return nullptr;
+    
+    uint32_t rsdt_len = rsdt_header->length;
+    acpi_unmap_temp(rsdt_header, sizeof(ACPISDTHeader));
+
+    // 2. Mapăm tot RSDT-ul
+    ACPISDTHeader* rsdt = (ACPISDTHeader*)acpi_map_temp(acpi_state.rsdt_phys, rsdt_len);
+    if (!rsdt) return nullptr;
+
+    int entries = (rsdt_len - sizeof(ACPISDTHeader)) / 4;
+    uint32_t* table_ptrs = (uint32_t*)((uint8_t*)rsdt + sizeof(ACPISDTHeader));
+    
+    void* found_table = nullptr;
+
+    for (int i = 0; i < entries; i++) {
+        uint32_t table_phys = table_ptrs[i];
+        if (table_phys == 0) continue;
+
+        ACPISDTHeader* header = (ACPISDTHeader*)acpi_map_temp(table_phys, sizeof(ACPISDTHeader));
+        if (!header) continue;
+
+        if (header->signature[0] == signature[0] &&
+            header->signature[1] == signature[1] &&
+            header->signature[2] == signature[2] &&
+            header->signature[3] == signature[3]) 
+        {
+            uint32_t len = header->length;
+            acpi_unmap_temp(header, sizeof(ACPISDTHeader));
+            found_table = acpi_map_temp(table_phys, len);
+            break;
+        }
+        acpi_unmap_temp(header, sizeof(ACPISDTHeader));
+    }
+
+    acpi_unmap_temp(rsdt, rsdt_len);
+    return found_table;
 }
