@@ -57,6 +57,7 @@
 #include "hardware/pci.h"
 #include "hardware/acpi.h"
 #include "mm/vmm.h"
+#include "hardware/apic.h"
 #include "interrupts/irq.h"
 #include "interrupts/isr.h"
 
@@ -456,6 +457,10 @@ vmm_identity_map(0x000E0000, 0x20000);     // BIOS area
 
 acpi_init();
 terminal_writestring("[kernel] acpi_init called\n");
+
+// Try to switch to APIC
+apic_init();
+
 // definește string-ul (scope file-local e OK)
 //static const char test_msg[] = "Hello from syscall!";
 

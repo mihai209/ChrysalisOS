@@ -1,5 +1,6 @@
 #pragma once
 #include <stdint.h>
+#include <stdarg.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -11,6 +12,9 @@ char serial_read();
 int  serial_is_transmit_empty();
 void serial_write(char c);
 void serial_write_string(const char* str);
+
+/* NEW */
+void serial_printf(const char* fmt, ...);
 
 #ifdef __cplusplus
 }

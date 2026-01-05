@@ -41,3 +41,86 @@ void serial_write_string(const char* str)
     while (*str)
         serial_write(*str++);
 }
+
+static void serial_write_uint(uint32_t v)
+{
+    char buf[11];
+    int i = 0;
+
+    if (v == 0) {
+        serial_write('0');
+        return;
+    }
+
+    while (v) {
+        buf[i++] = '0' + (v % 10);
+        v /= 10;
+    }
+
+    while (i--)
+        serial_write(buf[i]);
+}
+
+static void serial_write_int(int32_t v)
+{
+    if (v < 0) {
+        serial_write('-');
+        v = -v;
+    }
+    serial_write_uint((uint32_t)v);
+}
+
+static void serial_write_hex(uint32_t v)
+{
+    serial_write_string("0x");
+    for (int i = 28; i >= 0; i -= 4) {
+        uint8_t d = (v >> i) & 0xF;
+        serial_write(d < 10 ? '0' + d : 'a' + d - 10);
+    }
+}
+
+void serial_printf(const char* fmt, ...)
+{
+    va_list args;
+    va_start(args, fmt);
+
+    while (*fmt) {
+        if (*fmt != '%') {
+            serial_write(*fmt++);
+            continue;
+        }
+
+        fmt++; // skip %
+
+        switch (*fmt) {
+        case 's':
+            serial_write_string(va_arg(args, const char*));
+            break;
+        case 'c':
+            serial_write((char)va_arg(args, int));
+            break;
+        case 'd':
+            serial_write_int(va_arg(args, int));
+            break;
+        case 'u':
+            serial_write_uint(va_arg(args, uint32_t));
+            break;
+        case 'x':
+            serial_write_hex(va_arg(args, uint32_t));
+            break;
+        case 'p':
+            serial_write_hex((uint32_t)va_arg(args, void*));
+            break;
+        case '%':
+            serial_write('%');
+            break;
+        default:
+            serial_write('%');
+            serial_write(*fmt);
+            break;
+        }
+        fmt++;
+    }
+
+    va_end(args);
+}

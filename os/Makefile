@@ -121,6 +121,12 @@ OBJS = \
 	$(BUILD)/hardware/pci.o \
 	$(BUILD)/hardware/acpi.o \
 	$(BUILD)/arch/interrupts.o \
+	$(BUILD)/hardware/msr.o \
+	$(BUILD)/hardware/apic.o \
+	$(BUILD)/hardware/lapic.o \
+	$(BUILD)/hardware/ioapic.o \
+
+
 
 # -------------------------
 # TARGETURI PRINCIPALE
@@ -139,6 +145,12 @@ dirs: $(BUILD)
 	mkdir -p $(BUILD)/stubs
 	mkdir -p $(BUILD)/cmds
 	mkdir -p $(BUILD)/arch
+	mkdir -p $(BUILD)/arch/i386
+	mkdir -p $(BUILD)/arch/i386/cpu
+	mkdir -p $(BUILD)/arch/i386/apic
+	mkdir -p $(BUILD)/hardware
+
+
 
 # -------------------------
 # ASSEMBLY
@@ -457,6 +469,22 @@ $(BUILD)/hardware/acpi.o: kernel/hardware/acpi.cpp
 
 $(BUILD)/arch/interrupts.o: kernel/arch/i386/interrupts.c
 	$(CC) $(CFLAGS) -c $< -o $@
+
+$(BUILD)/hardware/msr.o: kernel/hardware/msr.c | dirs
+	@mkdir -p $(BUILD)/hardware
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(BUILD)/hardware/apic.o: kernel/hardware/apic.c | dirs
+	@mkdir -p $(BUILD)/hardware
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+$(BUILD)/hardware/lapic.o: kernel/hardware/lapic.c | dirs
+	@mkdir -p $(BUILD)/hardware
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+$(BUILD)/hardware/ioapic.o: kernel/hardware/ioapic.c | dirs
+	@mkdir -p $(BUILD)/hardware
+	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 
 # -------------------------

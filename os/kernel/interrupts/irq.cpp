@@ -3,6 +3,8 @@
 #include "../arch/i386/io.h" // Asigură-te că ai outb definit aici
 #include "../arch/i386/idt.h" // Necesar pentru idt_set_gate
 #include <stddef.h>
+#include "../hardware/apic.h"
+#include "../hardware/lapic.h"
 
 extern "C" {
     void *irq_routines[16] = { 0 };
@@ -88,9 +90,14 @@ extern "C" void irq_handler(registers_t *r)
     }
 
     // EOI Logic - Trimis DOAR aici
-    if (irq_no >= 8)
-    {
-        outb(0xA0, 0x20); // EOI Slave
+    if (apic_is_active()) {
+        lapic_eoi();
+    } else {
+        // PIC EOI
+        if (irq_no >= 8)
+        {
+            outb(0xA0, 0x20); // EOI Slave
+        }
+        outb(0x20, 0x20);     // EOI Master
     }
-    outb(0x20, 0x20);     // EOI Master
 }
