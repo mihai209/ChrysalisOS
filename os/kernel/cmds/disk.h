@@ -22,7 +22,7 @@ extern void cmd_scan(void);
 extern int cmd_format_letter(char letter);
 
 /* Shell command entrypoint - stil VECHI */
-void cmd_disk(const char* args);
+void cmd_disk(int argc, char** argv);
 
 #ifdef __cplusplus
 }

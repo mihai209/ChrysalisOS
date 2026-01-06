@@ -7,6 +7,8 @@
 #include "../storage/ata.h"
 #include "../terminal.h"
 #include "../fs/fat/fat.h"
+#include "../storage/block.h"
+#include "../fs/chrysfs/chrysfs.h"
 
 /* Minimal freestanding helpers - rămân static */
 static size_t k_strlen(const char* s) {
@@ -132,33 +134,6 @@ static void hexdump_line(const uint8_t* buf, int off, int len)
     print("\n");
 }
 
-static void hexdump(const uint8_t* buf, int count)
-{
-    for (int i = 0; i < count; i += 16)
-        hexdump_line(buf, i, (count - i) >= 16 ? 16 : (count - i));
-}
-
-static int split_args(const char* args_orig, char* argv[], int max_args, char* store, int store_size)
-{
-    if (!args_orig || args_orig[0] == '\0') return 0;
-    int n = strlen(args_orig);
-    if (n + 1 > store_size) n = store_size - 1;
-    memcpy(store, args_orig, n);
-    store[n] = '\0';
-
-    int argc = 0;
-    char* p = store;
-    while (argc < max_args && p && *p) {
-        while (*p == ' ') p++;
-        if (!*p) break;
-        argv[argc++] = p;
-        char* q = p;
-        while (*q && *q != ' ') q++;
-        if (*q) { *q = '\0'; p = q + 1; } else { p = NULL; }
-    }
-    return argc;
-}
-
 static int strcmp_local(const char *a, const char *b) {
     while (*a && *b && *a == *b) { a++; b++; }
     return (unsigned char)*a - (unsigned char)*b;
@@ -183,6 +158,7 @@ static void cmd_usage(void) {
     println("  disk init                : write simple MBR");
     println("  disk scan                : scan MBR partitions");
     println("  disk assign <l> <lba> <cnt> : manual assign");
+    println("  disk blocks              : list block devices (AHCI)");
     println("  disk format <letter>     : quick format");
     println("  disk test write <lba>    : test write");
     println("  disk test output <lba>   : read & dump");
@@ -214,6 +190,21 @@ static void cmd_list(int debug)
     for (int i = 0; i < 26; ++i) {
         if (g_assigns[i].used) {
             sprintf(tmp, "  %c => LBA %u count %u\n", g_assigns[i].letter, g_assigns[i].lba, g_assigns[i].count);
+            print(tmp);
+        }
+    }
+}
+
+static void cmd_list_blocks(void) {
+    println("[disk] Block Devices:");
+    // Simple iteration by probing names
+    char name[32];
+    for (int i = 0; i < 4; i++) {
+        sprintf(name, "ahci%d", i);
+        block_device_t* bd = block_get(name);
+        if (bd) {
+            char tmp[128];
+            sprintf(tmp, "  %s: %u sectors (AHCI)\n", bd->name, (uint32_t)bd->sector_count);
             print(tmp);
         }
     }
@@ -325,20 +316,15 @@ void cmd_scan(void)
 }
 
 /* FUNCTIA PRINCIPALĂ - compatibilă cu registry */
-void cmd_disk(const char* args)
+void cmd_disk(int argc, char** argv)
 {
     init_g_assigns();  // inițializare o singură dată la prima apelare
 
-    char store[256];
-    char* argv[16];
-    int argc = split_args(args, argv, 16, store, sizeof(store));
-
-    if (argc == 0) {
+    if (argc < 2) {
         cmd_usage();
         return;
     }
-
-    const char* sub = argv[0];
+    const char* sub = argv[1];
 
     if (strcmp_local(sub, "help") == 0 || strcmp_local(sub, "usage") == 0) {
         cmd_usage();
@@ -346,8 +332,13 @@ void cmd_disk(const char* args)
     }
 
     if (strcmp_local(sub, "list") == 0) {
-        int debug = (argc >= 2 && strcmp_local(argv[1], "debug") == 0);
+        int debug = (argc >= 3 && strcmp_local(argv[2], "debug") == 0);
         cmd_list(debug);
+        return;
+    }
+
+    if (strcmp_local(sub, "blocks") == 0) {
+        cmd_list_blocks();
         return;
     }
 
@@ -355,7 +346,7 @@ void cmd_disk(const char* args)
         println("[disk] initializing (write MBR) ...");
         create_minimal_mbr();
         cmd_scan();
-        if (g_assigns[0].used && fat_mount(g_assigns[0].lba))
+        if (g_assigns[0].used && fat32_init(0, g_assigns[0].lba) == 0)
             println("[disk] FAT mounted");
         else if (g_assigns[0].used)
             println("[disk] FAT mount failed");
@@ -364,7 +355,7 @@ void cmd_disk(const char* args)
 
     if (strcmp_local(sub, "scan") == 0) {
         cmd_scan();
-        if (g_assigns[0].used && fat_mount(g_assigns[0].lba))
+        if (g_assigns[0].used && fat32_init(0, g_assigns[0].lba) == 0)
             println("[disk] FAT mounted");
         else if (g_assigns[0].used)
             println("[disk] FAT mount failed");
@@ -372,10 +363,10 @@ void cmd_disk(const char* args)
     }
 
     if (strcmp_local(sub, "assign") == 0) {
-        if (argc < 4) { println("usage: disk assign <letter> <lba> <count>"); return; }
-        char letter = argv[1][0];
-        uint32_t lba = parse_u32(argv[2]);
-        uint32_t count = parse_u32(argv[3]);
+        if (argc < 5) { println("usage: disk assign <letter> <lba> <count>"); return; }
+        char letter = argv[2][0];
+        uint32_t lba = parse_u32(argv[3]);
+        uint32_t count = parse_u32(argv[4]);
         int idx = letter - 'a';
         if (idx < 0 || idx >= 26) { println("invalid letter"); return; }
         g_assigns[idx].used = 1;
@@ -387,8 +378,8 @@ void cmd_disk(const char* args)
     }
 
     if (strcmp_local(sub, "format") == 0) {
-        if (argc < 2) { println("usage: disk format <letter>"); return; }
-        cmd_format_letter(argv[1][0]);
+        if (argc < 3) { println("usage: disk format <letter>"); return; }
+        cmd_format_letter(argv[2][0]);
         return;
     }
 
@@ -397,8 +388,8 @@ void cmd_disk(const char* args)
         /* cod existent... păstrează-l dacă vrei */
     }
 
-    if (strcmp_local(sub, "fat") == 0 && argc >= 2 && strcmp_local(argv[1], "info") == 0) {
-        fat_info();
+    if (strcmp_local(sub, "fat") == 0 && argc >= 3 && strcmp_local(argv[2], "info") == 0) {
+        fat32_list_root();
         return;
     }
 

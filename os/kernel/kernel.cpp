@@ -65,6 +65,12 @@
 #include "hardware/hpet.h"
 #include "usb/usb_core.h"
 #include "storage/ahci/ahci.h"
+#include "storage/partition.h"
+#include "fs/fat/fat.h"
+#include "storage/io_sched.h"
+#include "input/input.h"
+#include "storage/block.h"
+#include "fs/chrysfs/chrysfs.h"
 
 
 
@@ -376,6 +382,19 @@ extern "C" void kernel_main(uint32_t magic, uint32_t addr) {
     // 9) Physical Memory Manager (PMM)
     pmm_init((void*)addr);
 
+    // 19) Heap + buddy allocator + kmalloc (MOVED UP - CRITICAL for drivers)
+    extern uint8_t __heap_start;
+    extern uint8_t __heap_end;
+
+    // defensive check: heap range must make sense
+    if (&__heap_end <= &__heap_start) {
+        panic_if_fatal("Heap region invalid (heap_end <= heap_start)");
+    }
+
+    heap_init(&__heap_start, (size_t)(&__heap_end - &__heap_start));
+    buddy_init_from_heap();
+    kmalloc_init();
+
     // Sanity check PMM (if you have functions for total frames, check them here)
 
     // 10) Input drivers: keyboard buffer + raw keyboard driver
@@ -398,18 +417,30 @@ extern "C" void kernel_main(uint32_t magic, uint32_t addr) {
     // 13) Event queue for event-driven design
     event_queue_init();
     
+    /* === NEW ARCHITECTURE INIT === */
+    input_init();
+    block_init();
+    chrysfs_init();
+    
     serial("[KERNEL] initializing AHCI\n");
     int ahci_ports = ahci_init();
+    io_sched_init(); /* Init Async IO Scheduler */
+
     if (ahci_ports > 0) {
         serial("[KERNEL] AHCI initialized %d ports. Disabling Legacy ATA.\n", ahci_ports);
     } else {
         serial("[KERNEL] AHCI not available or no ports active. Fallback to ATA.\n");
         ata_init();
     }
-
-    // 14) Now enable interrupts: only do this after driver IRQ handlers are installed.
-    // Enabling earlier risks races where an ISR runs before supporting state is ready.
-    asm volatile("sti");
+    
+    /* Mount CHRYS_FS on ahci0 */
+    if (ahci_ports > 0) {
+        block_device_t *bd = block_get("ahci0");
+        if (bd) {
+            chrysfs_mount(bd, "/");
+            chrysfs_ls("/root/files");
+        }
+    }
 
 terminal_writestring("Sleeping 1 second...\n");
 sleep(1000);
@@ -464,18 +495,9 @@ for (int i = 0; i < 5; i++) {
         smp_start_aps();
     }
 
-    // 19) Heap + buddy allocator + kmalloc
-    extern uint8_t __heap_start;
-    extern uint8_t __heap_end;
-
-    // defensive check: heap range must make sense
-    if (&__heap_end <= &__heap_start) {
-        panic_if_fatal("Heap region invalid (heap_end <= heap_start)");
-    }
-
-    heap_init(&__heap_start, (size_t)(&__heap_end - &__heap_start));
-    buddy_init_from_heap();
-    kmalloc_init();
+    // 14) Now enable interrupts: only do this after driver IRQ handlers are installed.
+    // Enabling earlier risks races where an ISR runs before supporting state is ready.
+    asm volatile("sti");
 
     // 20) Heap test (defensive frees)
     void* heap_a = kmalloc(64);
@@ -585,11 +607,17 @@ vmm_identity_map(0x000E0000, 0x20000);     // BIOS area
     // task and enable TASKS_ENABLED after implementing a safe switch_to.
     while (1) {
         usb_poll();           // Poll USB HID devices
+        io_sched_poll();      // Process Async I/O requests
         
-        /* Procesăm manual bufferul de tastatură pentru a garanta că input-ul ajunge la shell */
-        while (kbd_has_char()) {
-            char c = kbd_get_char();
-            shell_handle_char(c);
+        /* NEW: Unified Input Loop */
+        input_event_t ev;
+        while (input_pop(&ev)) {
+            if (ev.type == INPUT_KEYBOARD && ev.pressed) {
+                // Convert keycode to char if needed, or pass raw
+                // For now assuming keycode is ASCII for demo
+                // serial("[KERNEL] Shell consume: %c (0x%x)\n", (char)ev.keycode, ev.keycode);
+                shell_handle_char((char)ev.keycode);
+            }
         }
         
         // shell_poll_input(); // Redundant acum, facem polling manual mai sus

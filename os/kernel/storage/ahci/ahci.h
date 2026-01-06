@@ -121,6 +121,36 @@ typedef struct {
     uint32_t dbc; /* byte count (0-based) */
 } hba_prdt_entry_t;
 
+/* FIS - Host to Device (Register FIS - type 0x27) */
+typedef struct {
+    uint8_t  fis_type;  // 0x27
+    uint8_t  pm_port : 4;
+    uint8_t  rsv0    : 3;
+    uint8_t  c       : 1; // 1 = Command, 0 = Control
+    uint8_t  command;
+    uint8_t  featurel;
+    uint8_t  lba0;
+    uint8_t  lba1;
+    uint8_t  lba2;
+    uint8_t  device;
+    uint8_t  lba3;
+    uint8_t  lba4;
+    uint8_t  lba5;
+    uint8_t  featureh;
+    uint8_t  countl;
+    uint8_t  counth;
+    uint8_t  icc;
+    uint8_t  control;
+    uint8_t  rsv1[4];
+} fis_reg_h2d_t;
+
+typedef struct {
+    uint8_t  cfis[64];
+    uint8_t  acmd[16];
+    uint8_t  rsv[48];
+    hba_prdt_entry_t prdt_entry[1];
+} hba_cmd_tbl_t;
+
 /* -------------------------------------------------
  * Internal per-port software state
  * ------------------------------------------------- */
@@ -129,6 +159,7 @@ typedef struct {
     void *clb;
     void *fb;
     void *cmd_tables[AHCI_MAX_CMDS];
+    uint64_t sector_count;
 } ahci_port_state_t;
 
 /* exported global port state table */

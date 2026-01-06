@@ -4,7 +4,7 @@
 extern "C" {
 #endif
 
-void cmd_ls(const char* args);
+void cmd_ls(int argc, char** argv);
 
 #ifdef __cplusplus
 }

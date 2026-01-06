@@ -137,7 +137,12 @@ OBJS = \
     build/storage/ahci/ahci_hba.o \
     build/storage/ahci/ahci_port.o \
     build/storage/ahci/ahci_cmd.o \
-    build/storage/ahci/ahci_dma.o
+    build/storage/ahci/ahci_dma.o \
+    build/storage/partition.o \
+    build/storage/io_sched.o \
+    build/storage/block.o \
+    build/input/input.o \
+    build/fs/chrysfs/chrysfs.o
 
 
 
@@ -562,6 +567,26 @@ build/storage/ahci/ahci_cmd.o: kernel/storage/ahci/ahci_cmd.c kernel/storage/ahc
 build/storage/ahci/ahci_dma.o: kernel/storage/ahci/ahci_dma.c kernel/storage/ahci/ahci.h
 	@mkdir -p build/storage/ahci
 	$(CC) $(CFLAGS) -c kernel/storage/ahci/ahci_dma.c -o $@
+
+build/storage/partition.o: kernel/storage/partition.c
+	@mkdir -p build/storage
+	$(CC) $(CFLAGS) -c kernel/storage/partition.c -o $@
+
+build/storage/io_sched.o: kernel/storage/io_sched.c
+	@mkdir -p build/storage
+	$(CC) $(CFLAGS) -c kernel/storage/io_sched.c -o $@
+
+build/storage/block.o: kernel/storage/block.c
+	@mkdir -p build/storage
+	$(CC) $(CFLAGS) -c kernel/storage/block.c -o $@
+
+build/input/input.o: kernel/input/input.c
+	@mkdir -p build/input
+	$(CC) $(CFLAGS) -c kernel/input/input.c -o $@
+
+build/fs/chrysfs/chrysfs.o: kernel/fs/chrysfs/chrysfs.c
+	@mkdir -p build/fs/chrysfs
+	$(CC) $(CFLAGS) -c kernel/fs/chrysfs/chrysfs.c -o $@
 
 # -------------------------
 # LINK

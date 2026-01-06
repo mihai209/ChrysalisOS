@@ -92,3 +92,6 @@ lidt
 [pci] device found: 8086:7000
 [pci] device found: 1234:1111
 [pci] scan complete
+
+
+grep -R "cmd_[a-zA-Z_]*(" kernel/cmds/*.h

@@ -1,4 +1,7 @@
 // kernel/cmds/registry.cpp
+// Registry of shell commands for Chrysalis OS
+// Clean, freestanding-friendly, wrappers based on header prototypes.
+
 #include "registry.h"
 
 #include "clear.h"
@@ -13,8 +16,8 @@
 #include "uptime.h"
 #include "ticks.h"
 #include "help.h"
-#include "disk.h"   // stil vechi: void cmd_disk(const char*)
-#include "fat.h"    // stil nou: int cmd_fat(int, char**)
+#include "disk.h"
+#include "fat.h"
 #include "vfs.h"
 #include "pmm.h"
 #include "login.h"
@@ -29,14 +32,10 @@
 #include "elf.h"
 #include "elf_debug.h"
 #include "elf_crash.h"
-// Definiri manuale freestanding
-#ifndef NULL
-#define NULL 0          // în loc de ((void*)0) → evită eroarea de conversie
-#endif
 
+// Minimal freestanding helpers (no libc)
 typedef unsigned long size_t;
 
-// Implementări manuale (freestanding-friendly)
 static size_t k_strlen(const char* s) {
     const char* p = s;
     while (*p) ++p;
@@ -50,29 +49,42 @@ static void* k_memcpy(void* dst, const void* src, size_t n) {
     return dst;
 }
 
-/* Wrapper generic pentru comenzile vechi */
-static int old_style_wrapper(void (*old_func)(const char*), int argc, char **argv)
+/*
+ * Wrappers:
+ *
+ * - old-style commands (headers: void cmd_xxx(const char*))
+ *   Adapt to shell API int fn(int argc, char** argv)
+ *
+ * - new-style void commands (headers: void cmd_xxx(int,char**))
+ *   Wrap to return int (0)
+ *
+ * - new-style int commands (headers: int cmd_xxx(int,char**))
+ *   Call directly (no wrapper necessary), but we provide thin wrapper to keep table uniform.
+ */
+
+/* ----- Generic wrapper implementations ----- */
+
+/* old-style adapter: adapts void func(const char*) to int(int,char**) */
+static int wrap_old_style(void (*old_func)(const char*), int argc, char **argv)
 {
     if (argc <= 1) {
-        old_func(NULL);   // acum NULL este 0 → conversie implicită validă la const char*
+        old_func(0);
         return 0;
     }
 
-    size_t total_len = 0;
-    for (int i = 1; i < argc; ++i) {
-        if (i > 1) total_len += 1;                // spațiu
-        total_len += k_strlen(argv[i]);
-    }
-
-    static char args_buffer[256];
-    char* p = args_buffer;
+    /* build args string in a small stack buffer */
+    char args_buffer[256];
+    char *p = args_buffer;
 
     for (int i = 1; i < argc; ++i) {
-        if (i > 1) *p++ = ' ';
-
-        size_t len = k_strlen(argv[i]);
-        k_memcpy(p, argv[i], len);
-        p += len;
+        if (i > 1) { *p++ = ' '; }
+        const char *src = argv[i];
+        while (*src) {
+            *p++ = *src++;
+            /* avoid overflowing buffer */
+            if ((size_t)(p - args_buffer) >= sizeof(args_buffer) - 1) break;
+        }
+        if ((size_t)(p - args_buffer) >= sizeof(args_buffer) - 1) break;
     }
     *p = '\0';
 
@@ -80,53 +92,87 @@ static int old_style_wrapper(void (*old_func)(const char*), int argc, char **arg
     return 0;
 }
 
-/* Wrapper-e pentru toate comenzile vechi */
-static int wrap_cmd_beep(int argc, char **argv)     { return old_style_wrapper(cmd_beep,     argc, argv); }
-static int wrap_cmd_cat(int argc, char **argv)      { return old_style_wrapper(cmd_cat,      argc, argv); }
-static int wrap_cmd_clear(int argc, char **argv)    { return old_style_wrapper(cmd_clear,    argc, argv); }
-static int wrap_cmd_date(int argc, char **argv)     { return old_style_wrapper(cmd_date,     argc, argv); }
-static int wrap_cmd_disk(int argc, char **argv)     { return old_style_wrapper(cmd_disk,     argc, argv); }
-static int wrap_cmd_help(int argc, char **argv)     { return old_style_wrapper(cmd_help,     argc, argv); }
-static int wrap_cmd_ls(int argc, char **argv)       { return old_style_wrapper(cmd_ls,       argc, argv); }
-static int wrap_cmd_play(int argc, char **argv)     { return old_style_wrapper(cmd_play,     argc, argv); }
-static int wrap_cmd_reboot(int argc, char **argv)   { return old_style_wrapper(cmd_reboot,   argc, argv); }
-static int wrap_cmd_shutdown(int argc, char **argv) { return old_style_wrapper(cmd_shutdown, argc, argv); }
-static int wrap_cmd_ticks(int argc, char **argv)    { return old_style_wrapper(cmd_ticks,    argc, argv); }
-static int wrap_cmd_touch(int argc, char **argv)    { return old_style_wrapper(cmd_touch,    argc, argv); }
-static int wrap_cmd_uptime(int argc, char **argv)   { return old_style_wrapper(cmd_uptime,   argc, argv); }
-//static int wrap_cmd_login_main(int argc, char **argv) { return old_style_wrapper(cmd_login_main, argc, argv); }
-/* Tabelul final de comenzi */
-Command command_table[] = {
-    { "buildinfo", (command_fn)cmd_buildinfo },
-    { "beep",     (command_fn)wrap_cmd_beep },
-    { "chrysver", (command_fn)cmd_chrysver },
-    { "crash",    (command_fn)cmd_crash},
-    { "cat",      (command_fn)wrap_cmd_cat },
-    { "clear",    (command_fn)wrap_cmd_clear },
-    { "credits",  (command_fn)cmd_credits},
-    { "date",     (command_fn)wrap_cmd_date },
-    { "disk",     (command_fn)wrap_cmd_disk },     // stil vechi → wrapper
-    { "elf", (command_fn)cmd_elf},
-    { "elf-debug", (command_fn)cmd_elf_debug},
-    { "elf-crash", (command_fn)cmd_elf_crash},
-    { "exit",     (command_fn)wrap_cmd_shutdown},
-    { "echo", (command_fn)cmd_echo },
-    { "fortune", (command_fn)cmd_fortune },
-    { "fat",      (command_fn)cmd_fat },           // stil nou → direct
-    { "help",     (command_fn)wrap_cmd_help },
-    { "ls",       (command_fn)wrap_cmd_ls },
-    { "login",    (command_fn)cmd_login_main},
-    { "mem",      (command_fn)cmd_mem},
-    { "pmm",      (command_fn)cmd_pmm},
-    { "play",     (command_fn)wrap_cmd_play },
-    { "reboot",   (command_fn)wrap_cmd_reboot },
-    { "sysfetch", (command_fn)cmd_sysfetch },
-    { "shutdown", (command_fn)wrap_cmd_shutdown },
-    { "ticks",    (command_fn)wrap_cmd_ticks },
-    { "touch",    (command_fn)wrap_cmd_touch },
-    { "uptime",   (command_fn)wrap_cmd_uptime },
-    { "vfs",      (command_fn)cmd_vfs },
+/* wrapper for new-style void functions */
+static int wrap_new_void(void (*fn)(int, char**), int argc, char **argv) {
+    fn(argc, argv);
+    return 0;
+}
 
+/* wrapper for new-style int functions (calls and returns result) */
+static int wrap_new_int(int (*fn)(int, char**), int argc, char **argv) {
+    return fn(argc, argv);
+}
+
+/* ----- Generate wrappers for each command according to header prototypes ----- */
+
+/* Old-style commands (headers: void cmd_xxx(const char*)) */
+static int wrap_cmd_beep(int argc, char **argv)      { return wrap_old_style(cmd_beep,      argc, argv); }
+static int wrap_cmd_buildinfo(int argc, char **argv) { return wrap_old_style(cmd_buildinfo, argc, argv); }
+static int wrap_cmd_chrysver(int argc, char **argv)  { return wrap_old_style(cmd_chrysver,  argc, argv); }
+static int wrap_cmd_clear(int argc, char **argv)     { return wrap_old_style(cmd_clear,     argc, argv); }
+static int wrap_cmd_crash(int argc, char **argv)     { return wrap_old_style(cmd_crash,     argc, argv); }
+static int wrap_cmd_credits(int argc, char **argv)   { return wrap_old_style(cmd_credits,   argc, argv); }
+static int wrap_cmd_date(int argc, char **argv)      { return wrap_old_style(cmd_date,      argc, argv); }
+static int wrap_cmd_echo(int argc, char **argv)      { return wrap_old_style(cmd_echo,      argc, argv); }
+static int wrap_cmd_fortune(int argc, char **argv)   { return wrap_old_style(cmd_fortune,   argc, argv); }
+static int wrap_cmd_help(int argc, char **argv)      { return wrap_old_style(cmd_help,      argc, argv); }
+static int wrap_cmd_play(int argc, char **argv)      { return wrap_old_style(cmd_play,      argc, argv); }
+static int wrap_cmd_reboot(int argc, char **argv)    { return wrap_old_style(cmd_reboot,    argc, argv); }
+static int wrap_cmd_shutdown(int argc, char **argv)  { return wrap_old_style(cmd_shutdown,  argc, argv); }
+static int wrap_cmd_sysfetch(int argc, char **argv)  { return wrap_old_style(cmd_sysfetch,  argc, argv); }
+static int wrap_cmd_ticks(int argc, char **argv)     { return wrap_old_style(cmd_ticks,     argc, argv); }
+static int wrap_cmd_touch(int argc, char **argv)     { return wrap_old_style(cmd_touch,     argc, argv); }
+static int wrap_cmd_uptime(int argc, char **argv)    { return wrap_old_style(cmd_uptime,    argc, argv); }
+
+/* login and mem headers declare old-style; use old wrapper (if implementations are actually new-style you'll need to migrate those implementations) */
+static int wrap_cmd_login(int argc, char **argv)     { return wrap_old_style(cmd_login_main, argc, argv); }
+static int wrap_cmd_mem(int argc, char **argv)       { return wrap_old_style(cmd_mem,       argc, argv); }
+
+/* ----- New-style commands (void) according to headers ----- */
+static int wrap_cmd_cat(int argc, char **argv)       { return wrap_new_void(cmd_cat, argc, argv); }   /* void cmd_cat(int,char**) */
+static int wrap_cmd_disk(int argc, char **argv)      { return wrap_new_void(cmd_disk, argc, argv); }  /* void cmd_disk(int,char**) */
+static int wrap_cmd_ls(int argc, char **argv)        { return wrap_new_void(cmd_ls, argc, argv); }    /* void cmd_ls(int,char**) */
+static int wrap_cmd_vfs(int argc, char **argv)       { return wrap_new_void(cmd_vfs, argc, argv); }   /* void cmd_vfs(int,char**) */
+
+/* ----- New-style commands (int) according to headers ----- */
+static int wrap_cmd_fat(int argc, char **argv)       { return wrap_new_int(cmd_fat, argc, argv); }        /* int cmd_fat(int,char**) */
+static int wrap_cmd_elf(int argc, char **argv)       { return wrap_new_int(cmd_elf, argc, argv); }        /* int cmd_elf(int,char**) */
+static int wrap_cmd_elf_debug(int argc, char **argv) { return wrap_new_int(cmd_elf_debug, argc, argv); }  /* int cmd_elf_debug(int,char**) */
+static int wrap_cmd_elf_crash(int argc, char **argv) { return wrap_new_int(cmd_elf_crash, argc, argv); }  /* int cmd_elf_crash(int,char**) */
+static int wrap_cmd_pmm(int argc, char **argv)       { return wrap_new_int(cmd_pmm, argc, argv); }        /* int cmd_pmm(int,char**) */
+
+/* ----- Final command table ----- */
+/* Command typedef (from registry.h) assumed: typedef struct { const char* name; command_fn fn; } Command; */
+Command command_table[] = {
+    { "buildinfo", wrap_cmd_buildinfo },
+    { "beep",      wrap_cmd_beep },
+    { "chrysver",  wrap_cmd_chrysver },
+    { "crash",     wrap_cmd_crash },
+    { "cat",       wrap_cmd_cat },
+    { "clear",     wrap_cmd_clear },
+    { "credits",   wrap_cmd_credits },
+    { "date",      wrap_cmd_date },
+    { "disk",      wrap_cmd_disk },
+    { "echo",      wrap_cmd_echo },
+    { "elf",       wrap_cmd_elf },
+    { "elf-debug", wrap_cmd_elf_debug },
+    { "elf-crash", wrap_cmd_elf_crash },
+    { "exit",      wrap_cmd_shutdown },
+    { "fat",       wrap_cmd_fat },
+    { "fortune",   wrap_cmd_fortune },
+    { "help",      wrap_cmd_help },
+    { "ls",        wrap_cmd_ls },
+    { "login",     wrap_cmd_login },
+    { "mem",       wrap_cmd_mem },
+    { "pmm",       wrap_cmd_pmm },
+    { "play",      wrap_cmd_play },
+    { "reboot",    wrap_cmd_reboot },
+    { "shutdown",  wrap_cmd_shutdown },
+    { "sysfetch",  wrap_cmd_sysfetch },
+    { "ticks",     wrap_cmd_ticks },
+    { "touch",     wrap_cmd_touch },
+    { "uptime",    wrap_cmd_uptime },
+    { "vfs",       wrap_cmd_vfs },
 };
 
 int command_count = sizeof(command_table) / sizeof(Command);

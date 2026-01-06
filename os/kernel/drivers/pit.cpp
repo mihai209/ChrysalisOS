@@ -1,6 +1,7 @@
 #include "pit.h"
 #include "../interrupts/irq.h"
 #include "../arch/i386/io.h"
+#include "../hardware/lapic.h"
 
 static volatile uint64_t pit_ticks = 0;
 

@@ -80,6 +80,14 @@ void apic_init(void) {
         return;
     }
 
+    // 5. Map standard ISA IRQs (0-15) to vectors 0x20-0x2F
+    // This is CRITICAL for keyboard, PIT, and other legacy devices.
+    for (int i = 0; i < 16; i++) {
+        // Use overrides if present, otherwise default mapping
+        // For now, we just map them directly.
+        ioapic_enable_irq(i);
+    }
+
     apic_active = true;
     serial_printf("[apic] initialization complete\n");
 }

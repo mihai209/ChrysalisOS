@@ -91,6 +91,19 @@ int ahci_port_init(int port_no, hba_port_t *port) {
         for (int i = 0; i < 40; i+=2) { char tmp = model[i]; model[i] = model[i+1]; model[i+1] = tmp; }
         serial("[AHCI] port %d: identified model: %.40s\n", port_no, model);
         serial("[AHCI] port %d: LBA48 support: %s\n", port_no, (ident[167] & (1<<10)) ? "Yes" : "No");
+
+        /* Parse Sector Count */
+        uint16_t *id_words = (uint16_t*)ident;
+        uint32_t lba28 = (uint32_t)id_words[60] | ((uint32_t)id_words[61] << 16);
+        uint64_t lba48 = (uint64_t)id_words[100] | ((uint64_t)id_words[101] << 16) | 
+                         ((uint64_t)id_words[102] << 32) | ((uint64_t)id_words[103] << 48);
+        
+        if (id_words[83] & (1<<10)) { /* LBA48 supported */
+            port_states[port_no].sector_count = lba48;
+        } else {
+            port_states[port_no].sector_count = lba28;
+        }
+        serial("[AHCI] port %d: capacity %llu sectors\n", port_no, (unsigned long long)port_states[port_no].sector_count);
     }
 
     serial("[AHCI] port %d: init done\n", port_no);

@@ -1,5 +1,6 @@
 #include "mouse.h"
 #include "../interrupts/irq.h"
+#include "../hardware/lapic.h"
 
 static uint8_t packet[3];
 static uint8_t packet_index = 0;

@@ -4,7 +4,7 @@
 #include "../drivers/serial.h"
 #include "../mem/kmalloc.h"
 #include "../string.h"
-#include "../input/keyboard_buffer.h"
+#include "../input/input.h"
 
 #define MAX_HID_DEVICES 4
 
@@ -65,6 +65,7 @@ void usb_hid_init(uint8_t addr, uint8_t* config_desc, uint16_t config_len) {
                 hid_devices[i].td_handle = uhci_setup_interrupt(addr, hid_ep, hid_devices[i].buffer, hid_ep_size);
                 memset(hid_devices[i].prev_buffer, 0, 8);
                 serial_write_string("[USB HID] Polling started for new device.\r\n");
+                input_set_usb_keyboard_active(true);
                 return;
             }
         }
@@ -78,9 +79,37 @@ void usb_hid_poll(void) {
         hid_device_t* dev = &hid_devices[i];
 
         if (uhci_poll_interrupt(dev->td_handle)) {
+            /* Log raw report */
+            // serial_printf("[USB HID] report: %02x %02x %02x %02x %02x %02x %02x %02x\n",
+            //        dev->buffer[0], dev->buffer[1], dev->buffer[2], dev->buffer[3],
+            //        dev->buffer[4], dev->buffer[5], dev->buffer[6], dev->buffer[7]);
+
             uint8_t modifiers = dev->buffer[0];
             int shift = (modifiers & 0x02) || (modifiers & 0x20);
 
+            /* Check for Releases (keys in prev but not in curr) */
+            for (int j = 2; j < 8; j++) {
+                uint8_t old_key = dev->prev_buffer[j];
+                if (old_key > 0) {
+                    int still_pressed = 0;
+                    for (int k = 2; k < 8; k++) {
+                        if (dev->buffer[k] == old_key) {
+                            still_pressed = 1;
+                            break;
+                        }
+                    }
+                    if (!still_pressed) {
+                        /* RELEASE EVENT */
+                        if (old_key < 128) {
+                            char c = hid_ascii_map[old_key];
+                            if (shift && c >= 'a' && c <= 'z') c -= 32;
+                            if (c) input_push_key((uint32_t)c, false);
+                        }
+                    }
+                }
+            }
+
+            /* Check for Presses (keys in curr but not in prev) */
             for (int k = 2; k < 8; k++) {
                 uint8_t key = dev->buffer[k];
                 if (key > 0) {
@@ -93,14 +122,15 @@ void usb_hid_poll(void) {
                     }
 
                     if (new_press) {
-                        // serial_printf("[USB HID] Keycode: %x\n", key); // Comentat pentru a reduce spam-ul
+                        /* PRESS EVENT */
                         if (key < 128) {
                             char c = hid_ascii_map[key];
                             if (shift && c >= 'a' && c <= 'z') {
                                 c -= 32;
                             }
                             if (c) {
-                                kbd_push(c);
+                                // serial_printf("[USB HID] Decoded: %c (0x%x)\n", c, c);
+                                input_push_key((uint32_t)c, true);
                             }
                         }
                     }

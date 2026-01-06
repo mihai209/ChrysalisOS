@@ -1,7 +1,21 @@
 #include "ahci.h"
+#include "../block.h"
+#include "../../mem/kmalloc.h"
+#include "../../string.h"
 
 extern int ahci_port_init(int port_no, hba_port_t *port);
 extern void* ahci_get_abar(void);
+
+/* Block device wrappers */
+static int ahci_block_read(block_device_t *dev, uint64_t lba, uint32_t count, void *buf) {
+    int port = (int)(uintptr_t)dev->priv;
+    return ahci_read_lba(port, lba, count, buf);
+}
+
+static int ahci_block_write(block_device_t *dev, uint64_t lba, uint32_t count, const void *buf) {
+    int port = (int)(uintptr_t)dev->priv;
+    return ahci_write_lba(port, lba, count, buf);
+}
 
 int ahci_init(void) {
     serial("[AHCI] init start\n");
@@ -36,6 +50,24 @@ int ahci_init(void) {
             serial("[AHCI] Port %d present (SSTS=0x%x, SIG=0x%08x)\n", i, ssts, sig);
             if (ahci_port_init(i, port) == 0) {
                 ports_found++;
+                
+                /* Register as Block Device */
+                block_device_t *bd = (block_device_t*)kmalloc(sizeof(block_device_t));
+                if (bd) {
+                    memset(bd, 0, sizeof(block_device_t));
+                // snprintf(bd->name, 32, "ahci%d", i); // Need snprintf, manual for now:
+                bd->name[0] = 'a'; bd->name[1] = 'h'; bd->name[2] = 'c'; bd->name[3] = 'i'; 
+                bd->name[4] = '0' + i; bd->name[5] = 0;
+                
+                bd->sector_count = port_states[i].sector_count;
+                bd->sector_size = 512;
+                bd->read = ahci_block_read;
+                bd->write = ahci_block_write;
+                bd->priv = (void*)(uintptr_t)i;
+                block_register(bd);
+                } else {
+                    serial("[AHCI] Failed to allocate block device structure\n");
+                }
             }
         }
     }

@@ -7,6 +7,7 @@
 #include "../hardware/lapic.h"
 #include "../drivers/serial.h"
 #include "../panic.h"
+#include "../hardware/apic.h"
 
 extern "C" {
     void *irq_routines[16] = { 0 };
@@ -86,16 +87,18 @@ extern "C" void irq_handler(registers_t *r)
     
     handler = (void (*)(registers_t *))irq_routines[irq_no];
     
+    // Log that the IRQ fired
+    // serial_printf("[IRQ] fired: %d (vector 0x%x)\n", irq_no, r->int_no);
+
     if (handler)
     {
         handler(r);
     }
 
-    // EOI Logic - Trimis DOAR aici
+    // Centralized EOI Logic
     if (apic_is_active()) {
         lapic_eoi();
     } else {
-        // PIC EOI
         if (irq_no >= 8)
         {
             outb(0xA0, 0x20); // EOI Slave
