@@ -3,12 +3,14 @@
 #include <stdbool.h>
 #include "keyboard.h"
 #include "../interrupts/irq.h"
-#include "../input/keyboard_buffer.h"
 #include "../arch/i386/io.h"
 #include "../drivers/serial.h"
 #include "../input/input.h"
-#include "../drivers/pic.h"
-#include "../hardware/lapic.h"
+
+/* PS/2 Ports */
+#define PS2_DATA    0x60
+#define PS2_STATUS  0x64
+#define PS2_CMD     0x64
 
 /* US QWERTY Keymap (embedded for stability) */
 static const char keymap_us[128] = {
@@ -34,16 +36,35 @@ static bool ctrl_pressed = false;
 static bool shift_pressed = false;
 static bool alt_pressed = false;
 
+/* Helpers pentru sincronizare PS/2 */
+static void kbd_wait_write() {
+    int timeout = 100000;
+    while (timeout--) {
+        if ((inb(PS2_STATUS) & 2) == 0) return;
+        asm volatile("pause");
+    }
+    serial_write_string("[PS/2] Warning: Write timeout\r\n");
+}
+
+static void kbd_wait_read() {
+    int timeout = 100000;
+    while (timeout--) {
+        if ((inb(PS2_STATUS) & 1) == 1) return;
+        asm volatile("pause");
+    }
+    // Nu e neapărat eroare, poate nu sunt date
+}
+
 extern "C" void keyboard_handler(registers_t* regs)
 {
     (void)regs;
 
     /* Read status register */
-    uint8_t status = inb(0x64);
+    uint8_t status = inb(PS2_STATUS);
 
     /* Check if output buffer is full (bit 0) */
     if (status & 0x01) {
-        uint8_t scancode = inb(0x60);
+        uint8_t scancode = inb(PS2_DATA);
 
         /* If USB Keyboard is active, ignore PS/2 to prevent conflicts */
         /* --- KEY RELEASES --- */
@@ -89,8 +110,6 @@ extern "C" void keyboard_handler(registers_t* regs)
                 }
 
                 if (c) {
-                    /* Push to legacy buffer */
-                    // kbd_push(c);
                     /* Push to new input system */
                     input_push_key((uint32_t)c, true);
                 }
@@ -105,49 +124,57 @@ extern "C" void keyboard_init()
     serial_write_string("[PS/2] Initializing keyboard driver...\r\n");
 
     /* 1. Disable Keyboard Port */
-    outb(0x64, 0xAD);
+    kbd_wait_write();
+    outb(PS2_CMD, 0xAD);
 
     /* 2. Flush Output Buffer */
-    while(inb(0x64) & 1) inb(0x60);
+    while(inb(PS2_STATUS) & 1) inb(PS2_DATA);
 
     /* 3. Enable Keyboard Port */
-    outb(0x64, 0xAE);
+    kbd_wait_write();
+    outb(PS2_CMD, 0xAE);
 
     /* Reset keyboard */
-    outb(0x60, 0xFF);
+    kbd_wait_write();
+    outb(PS2_DATA, 0xFF);
     
     /* Wait for ACK (0xFA) */
-    int timeout = 100000;
-    while(timeout-- && !(inb(0x64) & 1));
-    if (timeout > 0) {
-        uint8_t resp = inb(0x60);
-        serial_printf("[PS/2] reset resp=0x%x\n", resp);
+    kbd_wait_read();
+    if (inb(PS2_STATUS) & 1) {
+        uint8_t resp = inb(PS2_DATA);
+        serial_printf("[PS/2] Reset ACK: 0x%x\n", resp);
     }
 
     /* Wait for BAT (0xAA) - Self Test Passed */
-    timeout = 1000000; 
+    int timeout = 1000000; 
     while(timeout-- > 0) {
-        if (inb(0x64) & 1) {
-            uint8_t bat = inb(0x60);
-            serial_printf("[PS/2] BAT/Extra: 0x%x\n", bat);
+        if (inb(PS2_STATUS) & 1) {
+            uint8_t bat = inb(PS2_DATA);
             if (bat == 0xAA) break; // Found BAT, we are good
         }
         asm volatile("pause");
     }
 
     /* Enable scanning */
-    outb(0x60, 0xF4);
-    while (!(inb(0x64) & 1));
-    inb(0x60);
+    kbd_wait_write();
+    outb(PS2_DATA, 0xF4);
+    
+    kbd_wait_read();
+    if (inb(PS2_STATUS) & 1) inb(PS2_DATA); // ACK for Enable Scanning
 
     /* 4. Enable Interrupts in Command Byte */
-    outb(0x64, 0x20); // Read Config
-    while ((inb(0x64) & 1) == 0); // Wait for data
-    uint8_t cmd = inb(0x60);
+    kbd_wait_write();
+    outb(PS2_CMD, 0x20); // Read Config
+    
+    kbd_wait_read();
+    uint8_t cmd = inb(PS2_DATA);
+    
+    kbd_wait_write();
+    outb(PS2_CMD, 0x60); // Write Config
+    
+    kbd_wait_write();
     cmd |= 0x01; // Enable IRQ1
-    outb(0x64, 0x60); // Write Config
-    while ((inb(0x64) & 2)); // Wait for input buffer empty
-    outb(0x60, cmd);
+    outb(PS2_DATA, cmd);
 
     irq_install_handler(1, keyboard_handler);
     
