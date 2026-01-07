@@ -122,7 +122,7 @@ From a kernel → **a multi-process OS**.
 | ✅     | SMP (Multi-core)  |
 | ✅     | HPET              |
 | ✅     | USB               |
-| 🔲     | AHCI              |
+| ✅     | AHCI              |
 | 🔲     | VESA Framebuffer  |
 | 🔲     | Basic GPU Support |
 
