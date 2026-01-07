@@ -123,7 +123,7 @@ From a kernel → **a multi-process OS**.
 | ✅     | HPET              |
 | ✅     | USB               |
 | ✅     | AHCI              |
-| 🔲     | VESA Framebuffer  |
+| ✅     | VESA Framebuffer  |
 | 🔲     | Basic GPU Support |
 
 **Optional but impressive.**
