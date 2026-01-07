@@ -1,123 +1,318 @@
 #include "shell.h"
 #include "../terminal.h"
 #include "../cmds/registry.h"
-#include "../input/keyboard_buffer.h"
-
-/* event queue includes */
-#include "../events/event.h"
+#include "../drivers/serial.h"
+#include "../string.h"
+#include "../mem/kmalloc.h"
+#include "../user/user.h"
 #include "../events/event_queue.h"
 
-/* user support for prompt */
-#include "../user/user.h"
+/* Configuration */
+#define SHELL_BUF_SIZE 256
+#define SHELL_MAX_ARGS 32
+#define HISTORY_SIZE 16
 
-static char buffer[128];
-static int index = 0;
+/* Key definitions (ASCII control codes) */
+#define KEY_ENTER       '\n'
+#define KEY_BACKSPACE   '\b'
+#define KEY_TAB         '\t'
+#define KEY_CTRL_P      16  /* Up (Previous) */
+#define KEY_CTRL_N      14  /* Down (Next) */
 
-/* mini strcmp (fără libc) */
-static int str_eq(const char* a, const char* b) {
-    while (*a && *b && *a == *b) { a++; b++; }
-    return *a == *b;
+/* State */
+static char line[SHELL_BUF_SIZE];
+static int line_len = 0;
+static int cursor = 0;
+static int last_rendered_len = 0;
+
+static char history[HISTORY_SIZE][SHELL_BUF_SIZE];
+static int hist_head = 0; // Next write slot
+static int hist_count = 0;
+static int hist_pos = -1; // -1 = current editing, 0..count-1 = history index
+
+/* Import serial logging */
+extern "C" void serial(const char *fmt, ...);
+
+/* --- Helpers --- */
+
+static void shell_render_line() {
+    /* Move to start of line */
+    terminal_putchar('\r');
+    
+    /* Render prompt */
+    shell_prompt();
+    
+    /* Render buffer */
+    for (int i = 0; i < line_len; i++) {
+        terminal_putchar(line[i]);
+    }
+    
+    /* Clear trailing garbage if line shrank */
+    if (last_rendered_len > line_len) {
+        for (int i = 0; i < (last_rendered_len - line_len); i++) terminal_putchar(' ');
+        for (int i = 0; i < (last_rendered_len - line_len); i++) terminal_putchar('\b');
+    }
+    last_rendered_len = line_len;
+    
+    /* Move cursor visually to correct position */
+    for (int i = line_len; i > cursor; i--) {
+        terminal_putchar('\b');
+    }
 }
 
-static void execute_command(const char* input) {
-    /* copiem input într-un buffer modificabil */
-    char tmp[128];
-    int i = 0;
-    while (input[i] && i < (int)sizeof(tmp) - 1) { tmp[i] = input[i]; i++; }
-    tmp[i] = '\0';
-
-    /* tokenizare simplă pe spațiu */
-    char *argv[16];
-    int argc = 0;
-    char *p = tmp;
-
-    /* skip leading spaces */
-    while (*p == ' ') p++;
-
-    while (*p && argc < (int)(sizeof(argv)/sizeof(argv[0]))) {
-        argv[argc++] = p;
-        /* avansăm la următorul spațiu */
-        while (*p && *p != ' ') p++;
-        if (*p == ' ') {
-            *p = '\0';
-            p++;
-            while (*p == ' ') p++; /* skip multiple spaces */
-        }
+static void shell_history_add(const char* cmd) {
+    if (!cmd || !*cmd) return;
+    
+    /* Don't add duplicates of the immediate last command */
+    if (hist_count > 0) {
+        int last_idx = (hist_head - 1 + HISTORY_SIZE) % HISTORY_SIZE;
+        if (strcmp(history[last_idx], cmd) == 0) return;
     }
+    
+    /* Add to ring buffer */
+    strcpy(history[hist_head], cmd);
+    hist_head = (hist_head + 1) % HISTORY_SIZE;
+    if (hist_count < HISTORY_SIZE) hist_count++;
+    
+    serial("[SHELL] History add: %s\n", cmd);
+}
 
-    if (argc == 0) return; /* linie goală */
-
-    /* caută comanda în tabel și apelează-o */
-    for (int j = 0; j < command_count; ++j) {
-        if (str_eq(argv[0], command_table[j].name)) {
-            /* apelăm funcția comenzii */
-            command_table[j].func(argc, argv);
+static void shell_history_nav(int dir) {
+    /* dir: 1 for UP (older), -1 for DOWN (newer) */
+    if (hist_count == 0) return;
+    
+    if (hist_pos == -1) {
+        /* Currently editing new line */
+        if (dir == 1) {
+            hist_pos = 0; /* Go to latest history */
+        } else {
             return;
         }
+    } else {
+        hist_pos += dir;
     }
-
-    terminal_writestring("Unknown command\n");
+    
+    /* Bounds check */
+    if (hist_pos < -1) hist_pos = -1;
+    if (hist_pos >= hist_count) hist_pos = hist_count - 1;
+    
+    /* Load line */
+    if (hist_pos == -1) {
+        line[0] = 0;
+        line_len = 0;
+        cursor = 0;
+    } else {
+        /* Calculate actual index in ring buffer (0 = latest) */
+        int idx = (hist_head - 1 - hist_pos + HISTORY_SIZE * 2) % HISTORY_SIZE;
+        strcpy(line, history[idx]);
+        line_len = strlen(line);
+        cursor = line_len;
+    }
+    
+    shell_render_line();
+    serial("[SHELL] History nav: pos=%d\n", hist_pos);
 }
 
+static void shell_exec_line() {
+    terminal_putchar('\n');
+    
+    if (line_len == 0) {
+        shell_prompt();
+        return;
+    }
+    
+    /* Add to history */
+    shell_history_add(line);
+    hist_pos = -1; // Reset history navigation
+    
+    /* Parse arguments */
+    char* argv[SHELL_MAX_ARGS];
+    int argc = 0;
+    
+    /* Tokenizer with quotes and escapes */
+    char* p = line;
+    while (*p && argc < SHELL_MAX_ARGS) {
+        /* Skip whitespace */
+        while (*p == ' ' || *p == '\t') p++;
+        if (!*p) break;
+        
+        /* Start of token */
+        if (*p == '"') {
+            /* Quoted string */
+            p++; // Skip opening quote
+            argv[argc++] = p;
+            while (*p && *p != '"') {
+                if (*p == '\\' && *(p+1)) {
+                    /* Handle escape: skip backslash, keep next char */
+                    /* In-place shift would be better, but for now we just skip \ */
+                    p++; 
+                }
+                p++;
+            }
+            if (*p == '"') *p++ = 0; // Terminate and skip closing quote
+        } else {
+            /* Normal word */
+            argv[argc++] = p;
+            while (*p && *p != ' ' && *p != '\t') p++;
+            if (*p) *p++ = 0; // Terminate
+        }
+    }
+    
+    if (argc > 0) {
+        serial("[SHELL] Exec: argc=%d cmd='%s'\n", argc, argv[0]);
+        
+        /* Lookup command */
+        int found = 0;
+        for (int i = 0; i < command_count; i++) {
+            if (strcmp(command_table[i].name, argv[0]) == 0) {
+                command_table[i].func(argc, argv);
+                found = 1;
+                break;
+            }
+        }
+        
+        if (!found) {
+            terminal_writestring("Unknown command: ");
+            terminal_writestring(argv[0]);
+            terminal_writestring("\n");
+        }
+    }
+    
+    /* Reset line */
+    line[0] = 0;
+    line_len = 0;
+    cursor = 0;
+    last_rendered_len = 0;
+    
+    shell_prompt();
+}
+
+static void shell_autocomplete() {
+    /* Find word start */
+    int start = cursor;
+    while (start > 0 && line[start-1] != ' ') start--;
+    
+    int word_len = cursor - start;
+    if (word_len == 0) return;
+    
+    char prefix[64];
+    int i;
+    for(i=0; i<word_len && i<63; i++) prefix[i] = line[start+i];
+    prefix[i] = 0;
+    
+    serial("[SHELL] Autocomplete prefix: '%s'\n", prefix);
+    
+    int matches = 0;
+    const char* last_match = 0;
+    
+    for (int j = 0; j < command_count; j++) {
+        if (strncmp(command_table[j].name, prefix, word_len) == 0) {
+            matches++;
+            last_match = command_table[j].name;
+        }
+    }
+    
+    if (matches == 1) {
+        /* Complete it */
+        const char* rest = last_match + word_len;
+        while (*rest) {
+            if (line_len < SHELL_BUF_SIZE - 1) {
+                line[line_len++] = *rest;
+                line[line_len] = 0;
+                cursor++;
+            }
+            rest++;
+        }
+        /* Add space */
+        if (line_len < SHELL_BUF_SIZE - 1) {
+            line[line_len++] = ' ';
+            line[line_len] = 0;
+            cursor++;
+        }
+        shell_render_line();
+    } else if (matches > 1) {
+        /* Show candidates */
+        terminal_putchar('\n');
+        for (int j = 0; j < command_count; j++) {
+            if (strncmp(command_table[j].name, prefix, word_len) == 0) {
+                terminal_writestring(command_table[j].name);
+                terminal_writestring(" ");
+            }
+        }
+        terminal_putchar('\n');
+        shell_render_line();
+    }
+}
+
+/* --- Public API --- */
+
 void shell_init() {
-    index = 0;
+    line[0] = 0;
+    line_len = 0;
+    cursor = 0;
+    hist_head = 0;
+    hist_count = 0;
+    hist_pos = -1;
+    
+    serial("[SHELL] Initialized.\n");
     shell_prompt();
 }
 
 void shell_handle_char(char c) {
-    if (c == '\n') {
-        buffer[index] = 0;
-        terminal_putchar('\n');
-
-        execute_command(buffer);
-
-        shell_prompt();
-        index = 0;
+    if (c == KEY_ENTER) {
+        shell_exec_line();
         return;
     }
-
-    if (c == '\b') {
-        if (index > 0) {
-            index--;
-            /* backspace visual (simple) */
-            terminal_putchar('\b');
-        }
-        return;
-    }
-
-    if (index < 127) {
-        buffer[index++] = c;
-        terminal_putchar(c);
-    }
-}
-
-/* --- new: poll input from event_queue first, then fallback to keyboard_buffer --- */
-void shell_poll_input(void)
-{
-    /* 1) consume events from event queue (preferred) */
-    event_t ev;
-    while (event_pop(&ev) == 0) {
-        if (ev.type == EVENT_KEY) {
-            /* only feed on key press events (pressed == 1) to match previous behavior */
-            if (ev.key.pressed) {
-                /* if ascii==0 (non-printable), we ignore */
-                if (ev.key.ascii) {
-                    shell_handle_char(ev.key.ascii);
-                }
+    
+    if (c == KEY_BACKSPACE) {
+        if (cursor > 0) {
+            /* Shift left */
+            for (int i = cursor; i < line_len; i++) {
+                line[i-1] = line[i];
             }
+            line_len--;
+            cursor--;
+            line[line_len] = 0;
+            shell_render_line();
         }
-        /* future: handle EVENT_MOUSE, EVENT_TIMER, etc. */
+        return;
     }
-
-    /* 2) fallback: consume legacy keyboard buffer (compat)
-    while (kbd_has_char()) {
-        char c = kbd_get_char();
-        shell_handle_char(c);
-    }*/
+    
+    if (c == KEY_TAB) {
+        shell_autocomplete();
+        return;
+    }
+    
+    /* History Navigation (Ctrl-P/N as fallback for Up/Down) */
+    if (c == KEY_CTRL_P) {
+        shell_history_nav(1);
+        return;
+    }
+    if (c == KEY_CTRL_N) {
+        shell_history_nav(-1);
+        return;
+    }
+    
+    /* Printable characters */
+    if (c >= 32 && c <= 126) {
+        if (line_len < SHELL_BUF_SIZE - 1) {
+            /* Insert at cursor */
+            for (int i = line_len; i > cursor; i--) {
+                line[i] = line[i-1];
+            }
+            line[cursor] = c;
+            line_len++;
+            cursor++;
+            line[line_len] = 0;
+            shell_render_line();
+        }
+    }
 }
 
 void shell_reset_input(void) {
-    index = 0;
+    line[0] = 0;
+    line_len = 0;
+    cursor = 0;
 }
 
 void shell_prompt(void) {
@@ -126,5 +321,15 @@ void shell_prompt(void) {
         terminal_printf("%s@chrysalis:~$ ", u->name);
     } else {
         terminal_printf("guest@chrysalis:~$ ");
+    }
+}
+
+/* Legacy poll support */
+void shell_poll_input() {
+    event_t ev;
+    while (event_pop(&ev) == 0) {
+        if (ev.type == EVENT_KEY && ev.key.pressed && ev.key.ascii) {
+            shell_handle_char(ev.key.ascii);
+        }
     }
 }
