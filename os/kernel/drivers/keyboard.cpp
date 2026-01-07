@@ -6,6 +6,7 @@
 #include "../arch/i386/io.h"
 #include "../drivers/serial.h"
 #include "../input/input.h"
+#include "../video/fb_console.h"
 
 /* PS/2 Ports */
 #define PS2_DATA    0x60
@@ -65,6 +66,20 @@ extern "C" void keyboard_handler(registers_t* regs)
     /* Check if output buffer is full (bit 0) */
     if (status & 0x01) {
         uint8_t scancode = inb(PS2_DATA);
+        
+        /* Handle Extended Keys (E0 prefix) */
+        static bool e0_prefix = false;
+        if (scancode == 0xE0) {
+            e0_prefix = true;
+            return;
+        }
+        
+        if (e0_prefix) {
+            e0_prefix = false;
+            if (scancode == 0x49) { /* PgUp */ fb_cons_scroll(-10); return; }
+            if (scancode == 0x51) { /* PgDn */ fb_cons_scroll(10); return; }
+            return; /* Consume other extended keys for now */
+        }
 
         /* If USB Keyboard is active, ignore PS/2 to prevent conflicts */
         /* --- KEY RELEASES --- */

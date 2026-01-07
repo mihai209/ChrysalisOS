@@ -20,9 +20,15 @@ extern "C" {
 #endif
 
 /* Page flags */
+#ifndef PAGE_PRESENT
 #define PAGE_PRESENT 0x01
+#endif
+#ifndef PAGE_RW
 #define PAGE_RW      0x02
+#endif
+#ifndef PAGE_USER
 #define PAGE_USER    0x04
+#endif
 #define PAGE_PWT     0x08 /* Page Write Through */
 #define PAGE_PCD     0x10 /* Page Cache Disable */
 

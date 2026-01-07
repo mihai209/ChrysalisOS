@@ -26,6 +26,13 @@ typedef struct {
     uint32_t bg;
 } console_cell_t;
 
+/* Scrollback Configuration */
+#define HISTORY_ROWS 400
+static console_cell_t* history_buffer = 0;
+static int history_head = 0;  /* Index for next write */
+static int history_count = 0; /* Total lines in history */
+static int view_offset = 0;   /* 0 = live, >0 = scrolled back lines */
+
 static console_cell_t* text_buffer = 0;
 
 #define FONT_W 8
@@ -61,6 +68,33 @@ static void draw_char_at(uint32_t cx, uint32_t cy, char c, uint32_t fg, uint32_t
 static void redraw_screen(void) {
     if (!text_buffer) return;
     
+    /* If viewing history, we need to compose the view */
+    if (view_offset > 0) {
+        for (uint32_t y = 0; y < max_rows; y++) {
+            int logical_line = (int)y - view_offset;
+            
+            console_cell_t* src_row = 0;
+            
+            if (logical_line >= 0) {
+                /* Line is in active text buffer */
+                src_row = &text_buffer[logical_line * max_cols];
+            } else {
+                /* Line is in history */
+                int hist_depth = -logical_line; // 1-based depth
+                if (hist_depth <= history_count) {
+                    int hist_idx = (history_head - hist_depth + HISTORY_ROWS) % HISTORY_ROWS;
+                    src_row = &history_buffer[hist_idx * max_cols];
+                }
+            }
+
+            for (uint32_t x = 0; x < max_cols; x++) {
+                console_cell_t cell = src_row ? src_row[x] : (console_cell_t){' ', current_fg, current_bg};
+                draw_char_at(x, y, cell.c, cell.fg, cell.bg);
+            }
+        }
+        return;
+    }
+    
     for (uint32_t y = 0; y < max_rows; y++) {
         for (uint32_t x = 0; x < max_cols; x++) {
             console_cell_t* cell = &text_buffer[y * max_cols + x];
@@ -72,6 +106,18 @@ static void redraw_screen(void) {
 /* Scroll the screen up by one line using the text buffer */
 static void scroll(void) {
     if (!text_buffer) return;
+
+    /* Save top line to history before it disappears */
+    if (history_buffer) {
+        memcpy(&history_buffer[history_head * max_cols], text_buffer, max_cols * sizeof(console_cell_t));
+        
+        history_head = (history_head + 1) % HISTORY_ROWS;
+        if (history_count < HISTORY_ROWS) {
+            history_count++;
+        }
+        
+        serial("[FB_CONS] Scroll: pushed line to history (count=%d)\n", history_count);
+    }
 
     /* Move text buffer up in RAM (Fast) */
     uint32_t count = (max_rows - 1) * max_cols;
@@ -142,8 +188,11 @@ void fb_cons_init(void) {
     if (text_buffer) kfree(text_buffer);
     text_buffer = (console_cell_t*)kmalloc(max_cols * max_rows * sizeof(console_cell_t));
     
-    if (!text_buffer) {
-        serial("[FB_CONS] Error: Failed to allocate text buffer!\n");
+    if (history_buffer) kfree(history_buffer);
+    history_buffer = (console_cell_t*)kmalloc(max_cols * HISTORY_ROWS * sizeof(console_cell_t));
+    
+    if (!text_buffer || !history_buffer) {
+        serial("[FB_CONS] Error: Failed to allocate buffers!\n");
         return;
     }
 
@@ -153,6 +202,10 @@ void fb_cons_init(void) {
         text_buffer[i].fg = current_fg;
         text_buffer[i].bg = current_bg;
     }
+    
+    history_head = 0;
+    history_count = 0;
+    view_offset = 0;
 
     /* Clear screen */
     gpu->ops->clear(gpu, current_bg);
@@ -218,6 +271,13 @@ static void fb_cons_putc_internal(char c) {
 void fb_cons_putc(char c) {
     if (!gpu_get_primary() || !text_buffer) return;
 
+    /* Auto-follow: Reset scrollback on input */
+    if (view_offset > 0) {
+        view_offset = 0;
+        redraw_screen();
+        serial("[FB_CONS] Auto-follow: snapped to bottom\n");
+    }
+
     /* Hide cursor, draw char, show cursor */
     draw_cursor(0);
     fb_cons_putc_internal(c);
@@ -226,6 +286,12 @@ void fb_cons_putc(char c) {
 
 void fb_cons_puts(const char* s) {
     if (!gpu_get_primary() || !text_buffer) return;
+
+    if (view_offset > 0) {
+        view_offset = 0;
+        redraw_screen();
+        serial("[FB_CONS] Auto-follow: snapped to bottom\n");
+    }
 
     /* Optimization: Hide cursor ONCE for the whole string */
     draw_cursor(0);
@@ -251,6 +317,9 @@ void fb_cons_clear(void) {
     cursor_x = 0;
     cursor_y = 0;
     
+    /* Note: We do NOT clear history on screen clear, similar to Linux terminal */
+    view_offset = 0;
+    
     /* Clear screen and redraw cursor */
     gpu->ops->clear(gpu, current_bg);
     draw_cursor(1);
@@ -258,13 +327,21 @@ void fb_cons_clear(void) {
 }
 
 void fb_cons_scroll(int lines) {
-    /* Simple scroll implementation. 
-       Since we don't have a history buffer yet, we can only simulate 
-       scrolling by moving text up (lines > 0). 
-       lines < 0 would mean scrolling back to history. */
+    /* lines < 0: Scroll BACK (view history)
+       lines > 0: Scroll FORWARD (view newer) */
     
-    if (lines > 0) {
-        for (int i = 0; i < lines; i++) scroll();
+    int old_offset = view_offset;
+    
+    view_offset -= lines;
+    
+    /* Clamp */
+    if (view_offset < 0) view_offset = 0;
+    if (view_offset > (int)history_count) view_offset = history_count;
+    
+    if (view_offset != old_offset) {
+        serial("[FB_CONS] Scroll offset: %d\n", view_offset);
+        draw_cursor(0); // Hide cursor at old position
+        redraw_screen();
+        draw_cursor(1); // Show cursor at new position (if visible)
     }
-    /* TODO: Implement history buffer for lines < 0 */
 }

@@ -11,6 +11,7 @@
 #define SHELL_BUF_SIZE 256
 #define SHELL_MAX_ARGS 32
 #define HISTORY_SIZE 16
+#define PIPE_BUF_SIZE 4096
 
 /* Key definitions (ASCII control codes) */
 #define KEY_ENTER       '\n'
@@ -113,24 +114,12 @@ static void shell_history_nav(int dir) {
     serial("[SHELL] History nav: pos=%d\n", hist_pos);
 }
 
-static void shell_exec_line() {
-    terminal_putchar('\n');
-    
-    if (line_len == 0) {
-        shell_prompt();
-        return;
-    }
-    
-    /* Add to history */
-    shell_history_add(line);
-    hist_pos = -1; // Reset history navigation
-    
+static void shell_exec_single(char* cmd_str) {
     /* Parse arguments */
     char* argv[SHELL_MAX_ARGS];
     int argc = 0;
     
-    /* Tokenizer with quotes and escapes */
-    char* p = line;
+    char* p = cmd_str;
     while (*p && argc < SHELL_MAX_ARGS) {
         /* Skip whitespace */
         while (*p == ' ' || *p == '\t') p++;
@@ -177,6 +166,92 @@ static void shell_exec_line() {
             terminal_writestring("\n");
         }
     }
+}
+
+static void shell_exec_line() {
+    terminal_putchar('\n');
+    
+    if (line_len == 0) {
+        shell_prompt();
+        return;
+    }
+    
+    /* Add to history */
+    shell_history_add(line);
+    hist_pos = -1; // Reset history navigation
+
+    /* Pipe buffers */
+    char* buf_in = 0;
+    size_t len_in = 0;
+    
+    char* buf_out = 0;
+    size_t len_out = 0;
+
+    /* Split by pipe '|' */
+    char* p = line;
+    char* cmd_start = p;
+    
+    while (*p) {
+        /* Find next pipe or end of string */
+        char* pipe_ptr = p;
+        while (*pipe_ptr && *pipe_ptr != '|') pipe_ptr++;
+        
+        bool is_last = (*pipe_ptr == 0);
+        if (!is_last) {
+            *pipe_ptr = 0; /* Terminate current command string */
+        }
+
+        /* Prepare Output Buffer if not last */
+        if (!is_last) {
+            buf_out = (char*)kmalloc(PIPE_BUF_SIZE);
+            if (buf_out) {
+                serial("[SHELL] Pipe created (buf=0x%x)\n", buf_out);
+                terminal_start_capture(buf_out, PIPE_BUF_SIZE, &len_out);
+            } else {
+                serial("[SHELL] Pipe alloc failed!\n");
+            }
+        } else {
+            terminal_end_capture();
+        }
+
+        /* Setup Input from previous pipe */
+        if (buf_in) {
+            terminal_set_input(buf_in, len_in);
+        } else {
+            terminal_set_input(0, 0);
+        }
+
+        /* Execute Command */
+        shell_exec_single(cmd_start);
+
+        /* Cleanup Input */
+        if (buf_in) {
+            kfree(buf_in);
+            buf_in = 0;
+            len_in = 0;
+        }
+
+        /* Prepare for next command */
+        if (!is_last) {
+            terminal_end_capture();
+            if (buf_out) {
+                serial("[SHELL] Pipe write: %d bytes\n", len_out);
+                buf_in = buf_out; /* Output becomes input for next */
+                len_in = len_out;
+                buf_out = 0;
+            }
+            cmd_start = pipe_ptr + 1;
+            p = cmd_start;
+        } else {
+            break;
+        }
+    }
+    
+    /* Ensure cleanup */
+    terminal_set_input(0, 0);
+    terminal_end_capture();
+    if (buf_in) kfree(buf_in);
+    if (buf_out) kfree(buf_out);
     
     /* Reset line */
     line[0] = 0;

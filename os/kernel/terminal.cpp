@@ -10,6 +10,15 @@ static int col = 0;
 static const uint8_t color = 0x0F;
 static bool use_fb_console = false;
 
+/* Redirection State */
+static char* capture_buf = 0;
+static size_t capture_max = 0;
+static size_t* capture_written = 0;
+
+static const char* input_buf = 0;
+static size_t input_len = 0;
+static size_t input_pos = 0;
+
 static void scroll() {
     if (row < 25) return;
 
@@ -41,6 +50,14 @@ extern "C" void terminal_clear() {
 }
 
 extern "C" void terminal_putchar(char c) {
+    /* Handle Output Redirection (Piping) */
+    if (capture_buf) {
+        if (capture_written && *capture_written < capture_max) {
+            capture_buf[(*capture_written)++] = c;
+        }
+        return; /* Do not print to screen when piped */
+    }
+
     if (use_fb_console) {
         fb_cons_putc(c);
         return;
@@ -225,4 +242,32 @@ extern "C" void terminal_writehex(uint32_t v)
             terminal_putchar(hex[nib]);
         }
     }
+}
+
+/* ===== Piping Implementation ===== */
+
+extern "C" void terminal_start_capture(char* buf, size_t max_len, size_t* out_len) {
+    capture_buf = buf;
+    capture_max = max_len;
+    capture_written = out_len;
+    if (capture_written) *capture_written = 0;
+}
+
+extern "C" void terminal_end_capture(void) {
+    capture_buf = 0;
+    capture_max = 0;
+    capture_written = 0;
+}
+
+extern "C" void terminal_set_input(const char* buf, size_t len) {
+    input_buf = buf;
+    input_len = len;
+    input_pos = 0;
+}
+
+extern "C" int terminal_read_char(void) {
+    if (input_buf && input_pos < input_len) {
+        return (unsigned char)input_buf[input_pos++];
+    }
+    return -1; /* EOF */
 }
