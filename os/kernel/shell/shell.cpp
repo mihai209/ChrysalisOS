@@ -100,7 +100,7 @@ void shell_poll_input(void)
         if (ev.type == EVENT_KEY) {
             /* only feed on key press events (pressed == 1) to match previous behavior */
             if (ev.key.pressed) {
-                /* if ascii==0 (non-printable), we ignore — you can extend this later */
+                /* if ascii==0 (non-printable), we ignore */
                 if (ev.key.ascii) {
                     shell_handle_char(ev.key.ascii);
                 }

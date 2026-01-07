@@ -28,7 +28,7 @@
     "run:gdb": "clear && qemu-system-i386 -cdrom chrysalis.iso -s -S",
 
     "//_storage": "Run with raw HDD image attached",
-"run:hdd": "clear && qemu-system-i386 -smp 2 -boot order=d -cdrom chrysalis.iso -serial stdio -drive file=hdd.img,format=raw,if=none,id=disk0 -device ahci,id=ahci -device ide-hd,drive=disk0,bus=ahci.0 -device piix3-usb-uhci -device usb-kbd",
+    "run:hdd": "clear && qemu-system-i386 -smp 2 -boot order=d -cdrom chrysalis.iso -serial stdio -drive file=hdd.img,format=raw,if=none,id=disk0 -device ahci,id=ahci -device ide-hd,drive=disk0,bus=ahci.0 -device piix3-usb-uhci",
 
     "//_tpm": "Run with software TPM (swtpm) enabled",
     "run:tpm": "sh -c 'rm -f swtpm.sock && mkdir -p tpm && swtpm socket --tpmstate dir=tpm --ctrl type=unixio,path=swtpm.sock & sleep 0.2 && qemu-system-i386 -m 64 -boot order=d -cdrom chrysalis.iso -drive file=hdd.img,format=raw -chardev socket,id=chrtpm,path=swtpm.sock -tpmdev emulator,id=tpm0,chardev=chrtpm -device tpm-tis,tpmdev=tpm0'",

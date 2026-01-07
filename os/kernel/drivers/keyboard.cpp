@@ -46,11 +46,6 @@ extern "C" void keyboard_handler(registers_t* regs)
         uint8_t scancode = inb(0x60);
 
         /* If USB Keyboard is active, ignore PS/2 to prevent conflicts */
-        if (input_is_usb_keyboard_active()) {
-            /* EOI is handled centrally in irq_handler */
-            return;
-        }
-
         /* --- KEY RELEASES --- */
         if (scancode & 0x80) {
             uint8_t sc = scancode & 0x7F;
@@ -101,9 +96,6 @@ extern "C" void keyboard_handler(registers_t* regs)
                 }
             }
         }
-    } else {
-        /* Spurious IRQ or empty buffer, read 0x60 to clear state if needed */
-        inb(0x60);
     }
 
 }
