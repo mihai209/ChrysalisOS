@@ -473,8 +473,8 @@ $(BUILD)/elf.o: kernel/elf/elf.c | dirs
 $(BUILD)/process.o: kernel/proc/process.c | dirs
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(BUILD)/exec.o: kernel/proc/exec.c | dirs
-	$(CC) $(CFLAGS) -c $< -o $@
+$(BUILD)/exec.o: kernel/proc/exec.cpp | dirs
+	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 $(BUILD)/stubs/exec_fallbacks.o: kernel/stubs/exec_fallbacks.c | dirs
 	$(CC) $(CFLAGS) -c $< -o $@

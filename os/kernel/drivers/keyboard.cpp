@@ -7,6 +7,7 @@
 #include "../drivers/serial.h"
 #include "../input/input.h"
 #include "../video/fb_console.h"
+#include "mouse.h" /* Pentru mouse_init la reload */
 
 /* PS/2 Ports */
 #define PS2_DATA    0x60
@@ -85,10 +86,13 @@ extern "C" void keyboard_handler(registers_t* regs)
             break;
         }
 
-        /* If data is from Mouse (Aux), DO NOT read it here.
-           Let the Mouse ISR (IRQ12) handle it. Break to allow EOI and IRQ12 to fire. */
+        /* If data is from Mouse (Aux) but triggered IRQ1, we MUST read it to clear
+           the controller, otherwise the system freezes waiting for a read that never happens.
+           We discard it to keep the keyboard alive. */
         if (status & STATUS_AUX_FULL) {
-            break;
+            uint8_t mdata = inb(PS2_DATA);
+            serial("[KBD] Warn: Mouse data on IRQ1 (0x%x), discarded to unblock.\n", mdata);
+            continue;
         }
 
         /* Read Scancode */
@@ -163,7 +167,7 @@ extern "C" void keyboard_init()
     outb(PS2_CMD, 0xA7); // Disable Mouse
 
     /* 2. Flush Output Buffer */
-    inb(PS2_DATA);
+    while (inb(PS2_STATUS) & STATUS_OUTPUT_FULL) inb(PS2_DATA);
 
     /* 3. Set Configuration Byte */
     kbd_wait_write();
@@ -172,6 +176,7 @@ extern "C" void keyboard_init()
     uint8_t config = inb(PS2_DATA);
 
     config |= 0x01;  // Enable IRQ1 (Keyboard)
+    config |= 0x02;  // Enable IRQ12 (Mouse) - Critical for mouse interrupts!
     config |= 0x40;  // Enable Translation (Set 2 -> Set 1)
     
     kbd_wait_write();
@@ -191,12 +196,51 @@ extern "C" void keyboard_init()
     kbd_wait_read();
     inb(PS2_DATA); // BAT
 
-    /* 6. Install Handler */
+    /* 6. Enable Scanning (Explicit) - Fixes dead keyboard after reboot */
+    kbd_wait_write();
+    outb(PS2_DATA, 0xF4);
+    kbd_wait_read();
+    inb(PS2_DATA); // ACK
+
+    /* 7. Install Handler */
     irq_install_handler(1, keyboard_handler);
     
-    /* 7. Unmask IRQ1 in PIC (Master) */
+    /* 8. Unmask IRQ1 in PIC (Master) */
     uint8_t mask = inb(0x21);
     outb(0x21, mask & 0xFD);
 
     serial("[PS/2] Keyboard initialized.\n");
+}
+
+/* --- Watchdog Implementation --- */
+static int watchdog_stuck_count = 0;
+
+void ps2_controller_watchdog(void) {
+    uint8_t status = inb(PS2_STATUS);
+    
+    /* Verificăm dacă există date în buffer (Bit 0 = 1) */
+    if (status & STATUS_OUTPUT_FULL) {
+        watchdog_stuck_count++;
+        
+        /* Dacă datele stau necitite prea mult timp (aprox 2-3 secunde la 100Hz),
+           înseamnă că întreruperile nu s-au declanșat sau controllerul e blocat. */
+        if (watchdog_stuck_count > 200) {
+            serial("[PS/2] Watchdog: Stuck data detected (Status=0x%x). Flushing...\n", status);
+            
+            /* Citim forțat pentru a debloca linia */
+            uint8_t garbage = inb(PS2_DATA);
+            (void)garbage;
+            
+            /* Dacă problema persistă (aprox 5 secunde), dăm reload complet */
+            if (watchdog_stuck_count > 500) {
+                serial("[PS/2] Watchdog: Devices unresponsive. Reloading drivers...\n");
+                keyboard_init();
+                mouse_init();
+                watchdog_stuck_count = 0;
+            }
+        }
+    } else {
+        /* Buffer gol, totul e OK */
+        watchdog_stuck_count = 0;
+    }
 }

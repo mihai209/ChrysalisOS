@@ -707,6 +707,7 @@ pci_init(); // DISABLED: Potential crash source
     while (1) {
         usb_poll();           // Poll USB HID devices
         io_sched_poll();      // Process Async I/O requests
+        ps2_controller_watchdog(); // Scan for PS/2 freezes
         
         /* NEW: Unified Input Loop */
         input_event_t ev;

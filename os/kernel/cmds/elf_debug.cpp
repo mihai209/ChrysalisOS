@@ -3,7 +3,10 @@
 #include <stdint.h>
 #include <stddef.h>
 #include "../terminal.h"
-extern void terminal_printf(const char* fmt, ...);
+#include "../fs/fs.h"
+#include "../fs/chrysfs/chrysfs.h"
+#include "../mem/kmalloc.h"
+#include "../string.h"
 
 static const char* flags_to_str(uint32_t flags) {
     static char buf[8];
@@ -34,6 +37,36 @@ void elf_debug_print_info(const elf_load_info_t* info) {
     }
 }
 
+/* Helper to read file content into a buffer */
+static uint8_t* read_file_debug(const char* path, uint32_t* out_size) {
+    /* 1. Try ChrysFS (Disk) */
+    if (strncmp(path, "/root", 5) == 0) {
+        size_t max_size = 1024 * 1024; // 1MB limit
+        uint8_t* buf = (uint8_t*)kmalloc(max_size);
+        if (!buf) return NULL;
+
+        int bytes = chrysfs_read_file(path, (char*)buf, max_size);
+        if (bytes > 0) {
+            *out_size = (uint32_t)bytes;
+            return buf;
+        }
+        kfree(buf);
+    }
+
+    /* 2. Try RAMFS */
+    const FSNode* node = fs_find(path);
+    if (node && node->data) {
+        size_t len = strlen(node->data);
+        uint8_t* buf = (uint8_t*)kmalloc(len);
+        if (!buf) return NULL;
+        memcpy(buf, node->data, len);
+        *out_size = (uint32_t)len;
+        return buf;
+    }
+
+    return NULL;
+}
+
 /* optional small command wrapper so you can call `elf_debug <file>` directly */
 extern "C" int cmd_elf_debug(int argc, char** argv) {
     if (argc < 2) {
@@ -41,10 +74,10 @@ extern "C" int cmd_elf_debug(int argc, char** argv) {
         return -1;
     }
     const char* path = argv[1];
-    void* buf = NULL;
     uint32_t len = 0;
-    extern int fs_readfile(const char* path, void** out_buf, uint32_t* out_len);
-    if (fs_readfile(path, &buf, &len) != 0 || !buf) {
+    
+    uint8_t* buf = read_file_debug(path, &len);
+    if (!buf) {
         terminal_printf("[elf_debug] cannot read %s\n", path);
         return -1;
     }
@@ -52,9 +85,11 @@ extern "C" int cmd_elf_debug(int argc, char** argv) {
     int r = elf_load_from_buffer(buf, len, &info);
     if (r != 0) {
         terminal_printf("[elf_debug] parse failed: %d\n", r);
+        kfree(buf);
         return -1;
     }
     elf_debug_print_info(&info);
     elf_unload_kernel_space(&info);
+    kfree(buf);
     return 0;
 }

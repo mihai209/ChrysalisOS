@@ -27,6 +27,7 @@ irq1:
 ; common handler
 ; -----------------------
 irq_common_stub:
+    cld                  ; GCC code expects Direction Flag to be 0
     pusha
 
     push ds

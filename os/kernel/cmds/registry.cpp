@@ -32,6 +32,7 @@
 #include "elf.h"
 #include "elf_debug.h"
 #include "elf_crash.h"
+#include "../proc/exec.h"
 
 // Minimal freestanding helpers (no libc)
 typedef unsigned long size_t;
@@ -141,6 +142,12 @@ static int wrap_cmd_elf_debug(int argc, char **argv) { return wrap_new_int(cmd_e
 static int wrap_cmd_elf_crash(int argc, char **argv) { return wrap_new_int(cmd_elf_crash, argc, argv); }  /* int cmd_elf_crash(int,char**) */
 static int wrap_cmd_pmm(int argc, char **argv)       { return wrap_new_int(cmd_pmm, argc, argv); }        /* int cmd_pmm(int,char**) */
 
+/* Wrapper for execve */
+static int wrap_cmd_exec(int argc, char **argv) {
+    if (argc < 2) return -1;
+    return execve(argv[1], argv + 1, nullptr);
+}
+
 /* ----- Final command table ----- */
 /* Command typedef (from registry.h) assumed: typedef struct { const char* name; command_fn fn; } Command; */
 Command command_table[] = {
@@ -157,6 +164,7 @@ Command command_table[] = {
     { "elf",       wrap_cmd_elf },
     { "elf-debug", wrap_cmd_elf_debug },
     { "elf-crash", wrap_cmd_elf_crash },
+    { "exec",      wrap_cmd_exec },
     { "exit",      wrap_cmd_shutdown },
     { "fat",       wrap_cmd_fat },
     { "fortune",   wrap_cmd_fortune },

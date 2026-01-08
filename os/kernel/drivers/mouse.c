@@ -169,7 +169,11 @@ void mouse_handler(registers_t* regs) {
 
     if (mouse_cycle == 0) {
         /* Byte 0 validation: Bit 3 must be 1 */
-        if ((b & 0x08) == 0) return; 
+        if ((b & 0x08) == 0) {
+            /* Invalid byte, reset cycle and try next byte in buffer */
+            mouse_cycle = 0;
+            continue;
+        }
         mouse_byte[0] = b;
         mouse_cycle++;
     } else if (mouse_cycle == 1) {
@@ -236,23 +240,10 @@ void mouse_handler(registers_t* regs) {
 void mouse_init(void) {
     serial("[MOUSE] subsystem initialized\n");
 
-    uint8_t status;
+    /* Note: Controller setup (IRQ12 enable, Port enable) is done in keyboard_init.
+       We just reset the mouse device itself. */
 
-    /* 1. Enable Aux Device */
-    mouse_wait(1);
-    outb(MOUSE_PORT_CMD, 0xA8);
-
-    /* 2. Enable IRQ12 */
-    mouse_wait(1);
-    outb(MOUSE_PORT_CMD, 0x20); /* Read Config */
-    mouse_wait(0);
-    status = inb(MOUSE_PORT_DATA) | 2;
-    mouse_wait(1);
-    outb(MOUSE_PORT_CMD, 0x60); /* Write Config */
-    mouse_wait(1);
-    outb(MOUSE_PORT_DATA, status);
-
-    /* 3. Set Defaults */
+    /* 1. Reset Mouse */
     mouse_write(0xF6);
     mouse_read(); /* ACK */
 
@@ -275,14 +266,14 @@ void mouse_init(void) {
         serial("[MOUSE] Standard PS/2 mouse (ID: %d)\n", id);
     }
 
-    /* 5. Enable Streaming */
+    /* 2. Enable Streaming */
     mouse_write(0xF4);
     mouse_read(); /* ACK */
 
-    /* 6. Install Interrupt Handler */
+    /* 3. Install Interrupt Handler */
     irq_install_handler(12, mouse_handler);
 
-    /* 7. Unmask IRQ12 in PIC (Slave) */
+    /* 4. Unmask IRQ12 in PIC (Slave) */
     uint8_t mask = inb(0xA1);
     outb(0xA1, mask & ~(1 << 4));
 

@@ -194,10 +194,16 @@ extern "C" void panic_render_pretty(const char* msg) {
 
 // === Reboot forțat ===
 extern "C" void try_reboot() {
-    // Pulse pe keyboard controller pentru reset
+    // 1. 8042 Keyboard Controller Pulse
     outb(0x64, 0xFE);
-    // Fallback: triple fault
-    for (volatile int i = 0; i < 1000000; i++);
+    for (volatile int i = 0; i < 100000; i++);
+
+    // 2. Fast A20/Reset via System Control Port A (0x92)
+    uint8_t val = inb(0x92);
+    outb(0x92, val | 1);
+    for (volatile int i = 0; i < 100000; i++);
+
+    // 3. Fallback: Triple Fault
     struct { uint16_t limit; uint32_t base; } __attribute__((packed)) idt = {0, 0};
     asm volatile("lidt %0; int $3" : : "m"(idt));
 }
