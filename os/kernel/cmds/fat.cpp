@@ -8,6 +8,8 @@
 extern void terminal_printf(const char* fmt, ...);
 
 static bool is_fat_initialized = false;
+static uint32_t current_lba = 0;
+static char current_letter = 0;
 
 /* Încearcă să monteze automat prima partiție FAT găsită */
 void fat_automount(void) {
@@ -35,6 +37,8 @@ void fat_automount(void) {
                 terminal_printf("[AutoMount] Mounting FAT32 on partition %c (LBA %u)...\n", g_assigns[i].letter, g_assigns[i].lba);
                 if (fat32_init(0, g_assigns[i].lba) == 0) {
                     is_fat_initialized = true;
+                    current_lba = g_assigns[i].lba;
+                    current_letter = g_assigns[i].letter;
                     return;
                 }
             }
@@ -60,15 +64,23 @@ extern "C" int cmd_fat(int argc, char **argv) {
 
     if (strcmp(sub, "ls") == 0) {
         fat_automount();
-        if (is_fat_initialized) fat32_list_root();
+        if (is_fat_initialized) {
+            terminal_printf("Listing root of FAT32 (Partition %c, LBA %u):\n", 
+                            current_letter ? current_letter : '?', current_lba);
+            fat32_list_root();
+        }
         else terminal_writestring("FAT not mounted (no FAT32 partition found).\n");
         return 0;
     }
 
     if (strcmp(sub, "info") == 0) {
         fat_automount();
-        if (is_fat_initialized) fat32_list_root();
-        else terminal_writestring("FAT not mounted.\n");
+        if (is_fat_initialized) {
+            terminal_writestring("FAT32 Filesystem Status:\n");
+            terminal_writestring("  State: Mounted\n");
+            terminal_printf("  Partition: %c\n", current_letter ? current_letter : '?');
+            terminal_printf("  LBA Start: %u\n", current_lba);
+        } else terminal_writestring("FAT not mounted.\n");
         return 0;
     }
 
@@ -99,8 +111,11 @@ extern "C" int cmd_fat(int argc, char **argv) {
         if (fat32_init(0, lba) == 0) {
             terminal_writestring("Mount successful.\n");
             is_fat_initialized = true;
+            current_lba = lba;
+            current_letter = letter;
         } else {
             terminal_writestring("Mount failed.\n");
+            is_fat_initialized = false;
         }
         return 0;
     }

@@ -72,8 +72,12 @@ extern "C" void keyboard_handler(registers_t* regs)
 {
     (void)regs;
     
+    /* Safety limit to prevent infinite loops in ISR */
+    int loops = 0;
+    const int max_loops = 100;
+
     /* Loop to handle all pending data (robustness against IRQ sharing/latency) */
-    while (true) {
+    while (loops < max_loops) {
         uint8_t status = inb(PS2_STATUS);
 
         /* If output buffer is empty, we are done */
@@ -81,11 +85,10 @@ extern "C" void keyboard_handler(registers_t* regs)
             break;
         }
 
-        /* If data is from Mouse (Aux), discard it here (mouse driver has its own IRQ12,
-           but if IRQ1 fires for mouse data, we must read it to clear the controller). */
+        /* If data is from Mouse (Aux), DO NOT read it here.
+           Let the Mouse ISR (IRQ12) handle it. Break to allow EOI and IRQ12 to fire. */
         if (status & STATUS_AUX_FULL) {
-            inb(PS2_DATA);
-            continue;
+            break;
         }
 
         /* Read Scancode */
@@ -145,6 +148,7 @@ extern "C" void keyboard_handler(registers_t* regs)
                 }
             }
         }
+        loops++;
     }
 }
 

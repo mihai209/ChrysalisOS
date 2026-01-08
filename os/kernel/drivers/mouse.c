@@ -156,12 +156,16 @@ static void update_cursor(void) {
 /* --- Interrupt Handler --- */
 void mouse_handler(registers_t* regs) {
     (void)regs;
-    uint8_t status = inb(MOUSE_PORT_STATUS);
+    
+    /* Loop to handle all pending mouse packets */
+    int loops = 0;
+    while (loops < 100) {
+        uint8_t status = inb(MOUSE_PORT_STATUS);
+        
+        /* Check if buffer has data (Bit 0) and it is from mouse (Aux bit 5) */
+        if (!((status & 0x01) && (status & 0x20))) break;
 
-    /* Check if buffer has data and it is from mouse (Aux bit 5) */
-    if (!(status & 0x20)) return;
-
-    uint8_t b = inb(MOUSE_PORT_DATA);
+        uint8_t b = inb(MOUSE_PORT_DATA);
 
     if (mouse_cycle == 0) {
         /* Byte 0 validation: Bit 3 must be 1 */
@@ -173,18 +177,21 @@ void mouse_handler(registers_t* regs) {
         mouse_cycle++;
     } else if (mouse_cycle == 2) {
         mouse_byte[2] = b;
-        if (mouse_has_wheel) {
-            mouse_cycle++; /* Wait for 4th byte */
-        } else {
-            goto process_packet;
-        }
+        mouse_cycle++;
     } else if (mouse_cycle == 3) {
         mouse_byte[3] = b;
-        goto process_packet;
+        mouse_cycle++;
     }
-    return;
+    else {
+        loops++;
+        continue; // Should not happen if logic is correct
+    }
+    
+    if (mouse_cycle < (mouse_has_wheel ? 4 : 3)) {
+        loops++;
+        continue;
+    }
 
-process_packet:
     mouse_cycle = 0;
 
     /* Decode Packet */
@@ -219,6 +226,9 @@ process_packet:
 
     /* Update Cursor on Screen */
     update_cursor();
+    
+    loops++;
+    }
 }
 
 /* --- Initialization --- */
