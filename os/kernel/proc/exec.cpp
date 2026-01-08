@@ -11,6 +11,11 @@
 #include "../mm/vmm.h"
 #include "../mm/paging.h"
 #include "../memory/pmm.h"
+#include "../cmds/cs.h"
+#include "../cmds/fat.h"
+
+/* FAT32 Driver API */
+extern "C" int fat32_read_file(const char* path, void* buf, uint32_t max_size);
 
 /* ELF Header Definitions */
 #define ELF_MAGIC 0x464C457F
@@ -52,14 +57,16 @@ typedef struct {
 
 /* Helper to read file content into a buffer */
 static uint8_t* read_executable(const char* path, size_t* out_size) {
-    /* 1. Try ChrysFS (Disk) */
+    /* 1. Try Disk (FAT32) */
     if (strncmp(path, "/root", 5) == 0) {
+        fat_automount();
+
         /* Allocate a reasonable buffer for the binary */
         size_t max_size = 1024 * 1024; // 1MB limit for now
         uint8_t* buf = (uint8_t*)kmalloc(max_size);
         if (!buf) return nullptr;
 
-        int bytes = chrysfs_read_file(path, (char*)buf, max_size);
+        int bytes = fat32_read_file(path, buf, max_size);
         if (bytes > 0) {
             *out_size = (size_t)bytes;
             return buf;
@@ -85,6 +92,18 @@ static uint8_t* read_executable(const char* path, size_t* out_size) {
 extern "C" int execve(const char *filename, char *const argv[], char *const envp[]) {
     (void)argv;
     (void)envp;
+
+    /* Hook for Chrysalis Script Interpreter (/bin/cs) */
+    if (strcmp(filename, "/bin/cs") == 0) {
+        /* Convert argv to argc/argv format for internal command */
+        int argc = 0;
+        while (argv[argc]) argc++;
+        
+        /* Execute interpreter directly */
+        /* Note: In a full kernel this would create a process image. 
+           Here we run it in the current context as requested for stability. */
+        return cmd_cs_main(argc, (char**)argv);
+    }
 
     terminal_printf("[EXEC] Loading '%s'...\n", filename);
 

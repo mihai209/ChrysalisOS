@@ -7,6 +7,10 @@
 #include "../fs/chrysfs/chrysfs.h"
 #include "../mem/kmalloc.h"
 #include "../string.h"
+#include "fat.h"
+
+/* FAT32 Driver API */
+extern "C" int fat32_read_file(const char* path, void* buf, uint32_t max_size);
 
 static const char* flags_to_str(uint32_t flags) {
     static char buf[8];
@@ -39,13 +43,15 @@ void elf_debug_print_info(const elf_load_info_t* info) {
 
 /* Helper to read file content into a buffer */
 static uint8_t* read_file_debug(const char* path, uint32_t* out_size) {
-    /* 1. Try ChrysFS (Disk) */
+    /* 1. Try Disk (FAT32) */
     if (strncmp(path, "/root", 5) == 0) {
+        fat_automount();
+
         size_t max_size = 1024 * 1024; // 1MB limit
         uint8_t* buf = (uint8_t*)kmalloc(max_size);
         if (!buf) return NULL;
 
-        int bytes = chrysfs_read_file(path, (char*)buf, max_size);
+        int bytes = fat32_read_file(path, buf, max_size);
         if (bytes > 0) {
             *out_size = (uint32_t)bytes;
             return buf;

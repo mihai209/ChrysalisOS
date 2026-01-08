@@ -6,6 +6,7 @@
 #include "../mem/kmalloc.h"
 #include "../user/user.h"
 #include "../events/event_queue.h"
+#include "../proc/exec.h"
 
 /* Configuration */
 #define SHELL_BUF_SIZE 256
@@ -149,6 +150,30 @@ static void shell_exec_single(char* cmd_str) {
     
     if (argc > 0) {
         serial("[SHELL] Exec: argc=%d cmd='%s'\n", argc, argv[0]);
+
+        /* Check for Chrysalis Script (.csr / .chs) */
+        int len = strlen(argv[0]);
+        if (len > 4) {
+            const char* ext = argv[0] + len - 4;
+            if (strcmp(ext, ".csr") == 0 || strcmp(ext, ".chs") == 0) {
+                serial("[SHELL] Detected script: %s\n", argv[0]);
+                
+                /* Construct argv for exec: ["cs", script_path, args...] */
+                char* new_argv[SHELL_MAX_ARGS + 2];
+                new_argv[0] = (char*)"cs";
+                new_argv[1] = argv[0]; /* Script path */
+                
+                for (int i = 1; i < argc; i++) {
+                    new_argv[i + 1] = argv[i];
+                }
+                new_argv[argc + 1] = 0; /* Null terminate */
+
+                /* Launch interpreter via exec */
+                /* This maps to /bin/cs inside execve */
+                execve("/bin/cs", new_argv, 0);
+                return;
+            }
+        }
         
         /* Lookup command */
         int found = 0;

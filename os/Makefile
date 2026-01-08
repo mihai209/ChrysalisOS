@@ -119,6 +119,8 @@ OBJS = \
 	$(BUILD)/cmds/elf.o \
 	$(BUILD)/cmds/elf_debug.o \
 	$(BUILD)/cmds/elf_crash.o \
+	$(BUILD)/cmds/write.o \
+	$(BUILD)/cmds/cs.o \
 	$(BUILD)/hardware/pci.o \
 	$(BUILD)/hardware/acpi.o \
 	$(BUILD)/arch/interrupts.o \
@@ -486,6 +488,12 @@ $(BUILD)/cmds/elf_debug.o: kernel/cmds/elf_debug.cpp | dirs
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 $(BUILD)/cmds/elf_crash.o: kernel/cmds/elf_crash.cpp | dirs
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+$(BUILD)/cmds/cs.o: kernel/cmds/cs.cpp | dirs
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+$(BUILD)/cmds/write.o: kernel/cmds/write.cpp | dirs
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 $(BUILD)/hardware/pci.o: kernel/hardware/pci.cpp

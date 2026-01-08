@@ -33,7 +33,8 @@
 #include "elf_debug.h"
 #include "elf_crash.h"
 #include "../proc/exec.h"
-
+#include "write.h"
+#include "cs.h"
 // Minimal freestanding helpers (no libc)
 typedef unsigned long size_t;
 
@@ -141,7 +142,8 @@ static int wrap_cmd_elf(int argc, char **argv)       { return wrap_new_int(cmd_e
 static int wrap_cmd_elf_debug(int argc, char **argv) { return wrap_new_int(cmd_elf_debug, argc, argv); }  /* int cmd_elf_debug(int,char**) */
 static int wrap_cmd_elf_crash(int argc, char **argv) { return wrap_new_int(cmd_elf_crash, argc, argv); }  /* int cmd_elf_crash(int,char**) */
 static int wrap_cmd_pmm(int argc, char **argv)       { return wrap_new_int(cmd_pmm, argc, argv); }        /* int cmd_pmm(int,char**) */
-
+static int wrap_cmd_write(int argc, char **argv)     { return wrap_new_int(cmd_write, argc, argv); }      /* int cmd_write(int,char**) */
+static int wrap_cmd_cs(int argc, char **argv)        { return wrap_new_int(cmd_cs_main, argc, argv); }      /* int cmd_cs(int,char**)
 /* Wrapper for execve */
 static int wrap_cmd_exec(int argc, char **argv) {
     if (argc < 2) return -1;
@@ -153,6 +155,7 @@ static int wrap_cmd_exec(int argc, char **argv) {
 Command command_table[] = {
     { "buildinfo", wrap_cmd_buildinfo },
     { "beep",      wrap_cmd_beep },
+    { "cs",        wrap_cmd_cs },
     { "chrysver",  wrap_cmd_chrysver },
     { "crash",     wrap_cmd_crash },
     { "cat",       wrap_cmd_cat },
@@ -181,6 +184,7 @@ Command command_table[] = {
     { "touch",     wrap_cmd_touch },
     { "uptime",    wrap_cmd_uptime },
     { "vfs",       wrap_cmd_vfs },
+    { "write",     wrap_cmd_write },
 };
 
 int command_count = sizeof(command_table) / sizeof(Command);
