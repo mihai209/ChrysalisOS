@@ -139,7 +139,7 @@ This level separates hobby kernels from serious systems.
 | ------ | ----------------- |
 | ✅     | Advanced Shell    |
 | ✅     | Piping            |
-| 🔲    | Scrollback        |
+| ✅    | Scrollback        |
 | 🔲     | Scripting         |
 | 🔲     | Virtual Terminals |
 | 🔲     | Cursor            |
