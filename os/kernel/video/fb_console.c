@@ -140,7 +140,13 @@ static void draw_cursor(int on) {
     gpu_device_t* gpu = gpu_get_primary();
     if (!gpu) return;
     
-    uint32_t start_y = cursor_y * FONT_H;
+    /* Calculate visual position based on scroll offset */
+    int visual_y = (int)cursor_y + view_offset;
+    
+    /* If cursor is pushed off-screen by scrolling back, don't draw it */
+    if (visual_y >= (int)max_rows) return;
+
+    uint32_t start_y = visual_y * FONT_H;
     uint32_t start_x = cursor_x * FONT_W;
     
     /* Bounds check */
@@ -150,9 +156,9 @@ static void draw_cursor(int on) {
     if (!on) {
         if (text_buffer) {
             console_cell_t* cell = &text_buffer[cursor_y * max_cols + cursor_x];
-            draw_char_at(cursor_x, cursor_y, cell->c, cell->fg, cell->bg);
+            draw_char_at(cursor_x, visual_y, cell->c, cell->fg, cell->bg);
         } else {
-             draw_char_at(cursor_x, cursor_y, ' ', current_fg, current_bg);
+             draw_char_at(cursor_x, visual_y, ' ', current_fg, current_bg);
         }
         return;
     }
@@ -220,6 +226,11 @@ static void fb_cons_putc_internal(char c) {
     if (c == '\n') {
         cursor_x = 0;
         cursor_y++;
+        /* Auto-scroll if we hit the bottom */
+        if (cursor_y >= max_rows) {
+            scroll();
+            cursor_y = max_rows - 1;
+        }
     } else if (c == '\r') {
         cursor_x = 0;
     } else if (c == '\b') {
@@ -233,24 +244,34 @@ static void fb_cons_putc_internal(char c) {
     } else if (c == '\t') {
         int spaces = 8 - (cursor_x % 8);
         for (int i = 0; i < spaces; i++) {
-            if (cursor_x < max_cols) {
-                console_cell_t* cell = &text_buffer[cursor_y * max_cols + cursor_x];
-                cell->c = ' ';
-                cell->fg = current_fg;
-                cell->bg = current_bg;
-                draw_char_at(cursor_x, cursor_y, ' ', current_fg, current_bg);
-                cursor_x++;
-                if (cursor_x >= max_cols) {
-                    cursor_x = 0;
-                    cursor_y++;
-                    if (cursor_y >= max_rows) {
-                        scroll();
-                        cursor_y = max_rows - 1;
-                    }
+            /* Wrap if needed inside tab loop */
+            if (cursor_x >= max_cols) {
+                cursor_x = 0;
+                cursor_y++;
+                if (cursor_y >= max_rows) {
+                    scroll();
+                    cursor_y = max_rows - 1;
                 }
             }
+            
+            console_cell_t* cell = &text_buffer[cursor_y * max_cols + cursor_x];
+            cell->c = ' ';
+            cell->fg = current_fg;
+            cell->bg = current_bg;
+            draw_char_at(cursor_x, cursor_y, ' ', current_fg, current_bg);
+            cursor_x++;
         }
     } else if (c >= ' ') {
+        /* Wrap text if we are at the edge */
+        if (cursor_x >= max_cols) {
+            cursor_x = 0;
+            cursor_y++;
+            if (cursor_y >= max_rows) {
+                scroll();
+                cursor_y = max_rows - 1;
+            }
+        }
+
         if (cursor_x < max_cols && cursor_y < max_rows) {
             console_cell_t* cell = &text_buffer[cursor_y * max_cols + cursor_x];
             cell->c = c;
