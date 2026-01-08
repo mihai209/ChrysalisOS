@@ -103,7 +103,7 @@ Memory bugs stop being fatal, and multitasking becomes realistic.
 | ✅      | User Mode             | Ring 3             |
 | ✅      | Syscalls (`int 0x80`) |                    |
 | ✅      | ELF Loader            |                    |
-| 🔲     | `exec()`              | Later              |
+| ✅     | `exec()`              | done              |
 
 **This is the turning point:**
 From a kernel → **a multi-process OS**.
