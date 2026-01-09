@@ -143,7 +143,7 @@ This level separates hobby kernels from serious systems.
 | ✅     | Scripting         |
 | ✅     | Virtual Terminals |
 | ✅     | Cursor            |
-| 🔲     | Colors            |
+| ✅      | Colors            |
 | 🔲     | Text Editor       |
 | 🔲     | Filesystem Tools  |
 
