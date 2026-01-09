@@ -56,83 +56,81 @@ extern "C" int cmd_write(int argc, char** argv) {
     
     size_t new_len = strlen(new_text);
 
-    /* Disk Handling (FAT32 via /root) */
-    if (strncmp(path, "/root", 5) == 0) {
-        /* Ensure partition is mounted */
-        fat_automount();
+    /* 1. Try Disk (FAT32) - Priority */
+    fat_automount();
 
-        /* Try to read existing file to support append */
-        size_t max_read = 64 * 1024; // 64KB limit for simple text files
-        char* existing_buf = (char*)kmalloc(max_read);
-        int existing_size = 0;
-        
-        if (existing_buf) {
-            int r = fat32_read_file(path, existing_buf, max_read);
-            if (r > 0) {
-                existing_size = r;
-            }
+    /* Try to read existing file to support append */
+    size_t max_read = 64 * 1024; // 64KB limit for simple text files
+    char* existing_buf = (char*)kmalloc(max_read);
+    int existing_size = 0;
+    
+    if (existing_buf) {
+        int r = fat32_read_file(path, existing_buf, max_read);
+        if (r > 0) {
+            existing_size = r;
         }
+    }
 
-        /* Allocate combined buffer */
-        size_t total_size = existing_size + new_len;
-        char* final_buf = (char*)kmalloc(total_size + 1);
-        
-        if (!final_buf) {
-            terminal_writestring("Error: Out of memory for file write\n");
-            kfree(new_text);
-            if (existing_buf) kfree(existing_buf);
-            return -1;
-        }
-
-        /* Combine: Old + New */
-        if (existing_size > 0) {
-            memcpy(final_buf, existing_buf, existing_size);
-        }
-        memcpy(final_buf + existing_size, new_text, new_len);
-        final_buf[total_size] = 0;
-
-        /* Write back to disk */
-        int res = fat32_create_file(path, final_buf, total_size);
-        
-        if (res == 0) {
-            if (existing_size > 0) {
-                terminal_writestring("Appended to file.\n");
-                serial("[WRITE] append %s: %d bytes\n", path, new_len);
-            } else {
-                terminal_writestring("Created file.\n");
-                serial("[WRITE] created %s\n", path);
-            }
-        } else {
-            terminal_writestring("Error writing file.\n");
-            serial("[WRITE] error writing %s\n", path);
-        }
-
-        kfree(final_buf);
+    /* Allocate combined buffer */
+    size_t total_size = existing_size + new_len;
+    char* final_buf = (char*)kmalloc(total_size + 1);
+    
+    if (!final_buf) {
+        terminal_writestring("Error: Out of memory for file write\n");
+        kfree(new_text);
         if (existing_buf) kfree(existing_buf);
-    } 
-    /* RAMFS Handling (Fallback) */
-    else {
+        return -1;
+    }
+
+    /* Combine: Old + New */
+    if (existing_size > 0) {
+        memcpy(final_buf, existing_buf, existing_size);
+    }
+    memcpy(final_buf + existing_size, new_text, new_len);
+    final_buf[total_size] = 0;
+
+    /* Write back to disk */
+    int res = fat32_create_file(path, final_buf, total_size);
+    
+    /* Cleanup disk buffers */
+    kfree(final_buf);
+    if (existing_buf) kfree(existing_buf);
+
+    if (res == 0) {
+        if (existing_size > 0) {
+            terminal_writestring("Appended to file (Disk).\n");
+            serial("[WRITE] append %s: %d bytes\n", path, new_len);
+        } else {
+            terminal_writestring("Created file (Disk).\n");
+            serial("[WRITE] created %s\n", path);
+        }
+        kfree(new_text);
+        return 0;
+    }
+    
+    /* 2. RAMFS Handling (Fallback if disk failed/not mounted) */
+    {
         /* Check if exists to append */
         const FSNode* node = fs_find(path);
-        char* final_buf = nullptr;
+        char* ram_buf = nullptr;
         
         if (node && node->data) {
             size_t old_len = strlen(node->data);
-            final_buf = (char*)kmalloc(old_len + new_len + 1);
-            if (final_buf) {
-                strcpy(final_buf, node->data);
-                strcat(final_buf, new_text);
+            ram_buf = (char*)kmalloc(old_len + new_len + 1);
+            if (ram_buf) {
+                strcpy(ram_buf, node->data);
+                strcat(ram_buf, new_text);
             }
         } else {
-            final_buf = (char*)kmalloc(new_len + 1);
-            if (final_buf) {
-                strcpy(final_buf, new_text);
+            ram_buf = (char*)kmalloc(new_len + 1);
+            if (ram_buf) {
+                strcpy(ram_buf, new_text);
             }
         }
 
-        if (final_buf) {
+        if (ram_buf) {
             /* fs_create typically creates or updates in RAMFS */
-            fs_create(path, final_buf);
+            fs_create(path, ram_buf);
             
             if (node) {
                 terminal_writestring("Appended to RAMFS file.\n");

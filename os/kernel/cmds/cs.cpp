@@ -75,14 +75,12 @@ static void cs_exec_line(char* line, int line_num) {
 
 /* Helper to read file content (similar to exec.cpp but for text) */
 static char* cs_read_script(const char* path, size_t* out_size) {
-    /* 1. Try Disk (FAT32) */
-    if (strncmp(path, "/root", 5) == 0) {
-        fat_automount();
+    /* 1. Try Disk (FAT32) - Priority */
+    fat_automount();
 
-        size_t max_size = 64 * 1024; // 64KB script limit
-        char* buf = (char*)kmalloc(max_size);
-        if (!buf) return nullptr;
-
+    size_t max_size = 64 * 1024; // 64KB script limit
+    char* buf = (char*)kmalloc(max_size);
+    if (buf) {
         int bytes = fat32_read_file(path, buf, max_size - 1);
         if (bytes > 0) {
             buf[bytes] = 0; // Null terminate text
@@ -92,11 +90,11 @@ static char* cs_read_script(const char* path, size_t* out_size) {
         kfree(buf);
     }
 
-    /* 2. Try RAMFS */
+    /* 2. Try RAMFS (Fallback) */
     const FSNode* node = fs_find(path);
     if (node && node->data) {
         size_t len = strlen(node->data);
-        char* buf = (char*)kmalloc(len + 1);
+        buf = (char*)kmalloc(len + 1);
         if (!buf) return nullptr;
         strcpy(buf, node->data);
         *out_size = len;
