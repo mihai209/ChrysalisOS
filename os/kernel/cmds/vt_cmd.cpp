@@ -47,8 +47,13 @@ extern "C" int cmd_vt(int argc, char** argv) {
         int active = vt_active();
         for (int i = 0; i < VT_COUNT; i++) {
             const char* role = vt_get_role(i);
-            terminal_printf("VT%d  %-10s %s\n", i, role, (i == active) ? "active" : "");
+            /* Manual padding since %-10s is not supported by our printf */
+            terminal_printf("VT%d  %s", i, role);
+            size_t len = strlen(role);
+            for (size_t k = len; k < 10; k++) terminal_writestring(" ");
+            terminal_printf(" %s\n", (i == active) ? "active" : "");
         }
+        terminal_writestring("VT99 serial      (host shell)\n");
         return 0;
     }
 
@@ -65,6 +70,13 @@ extern "C" int cmd_vt(int argc, char** argv) {
             return -1;
         }
         int id = k_atoi(argv[2]);
+        if (id == 99) {
+            terminal_writestring("VT99 is the Serial Console (Host). It is always active in background.\n");
+            terminal_writestring("You cannot switch the framebuffer to it.\n");
+            terminal_writestring("Yet i want to make accessible so eh, i will try on the next versions, soo rate it on github if you like it:)\n");
+            return 0;
+        }
+
         if (id < 0 || id >= VT_COUNT) {
             terminal_printf("Invalid VT ID (0-%d)\n", VT_COUNT - 1);
             return -1;
