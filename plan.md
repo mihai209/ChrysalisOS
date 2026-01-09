@@ -145,7 +145,7 @@ This level separates hobby kernels from serious systems.
 | ✅     | Cursor            |
 | ✅      | Colors            |
 | ✅     | Text Editor       |
-| 🔲     | Filesystem Tools  |
+| ✅     | Filesystem Tools  |
 
 ---
 
