@@ -1,11 +1,12 @@
 /* kernel/cmds/write.cpp
- * Minimal bootstrap tool to create/append text files.
+ * Minimal interactive line-based text editor.
  */
 
 #include "write.h"
 #include "../terminal.h"
 #include "../string.h"
 #include "../mem/kmalloc.h"
+#include "../input/input.h"
 #include "fat.h"
 
 /* FAT32 Driver API (External) */
@@ -15,100 +16,115 @@ extern "C" int fat32_read_file(const char* path, void* buf, uint32_t max_size);
 /* Import serial logging */
 extern "C" void serial(const char *fmt, ...);
 
-/* Helper to join argv[start..argc] into a single string with spaces and a trailing newline */
-static char* join_args(int argc, char** argv, int start_index) {
-    int total_len = 0;
-    for (int i = start_index; i < argc; i++) {
-        total_len += strlen(argv[i]);
-        if (i < argc - 1) total_len++; // space
-    }
-    total_len += 1; // newline
-    
-    char* str = (char*)kmalloc(total_len + 1);
-    if (!str) return nullptr;
-    
-    char* p = str;
-    for (int i = start_index; i < argc; i++) {
-        const char* s = argv[i];
-        while (*s) *p++ = *s++;
-        if (i < argc - 1) *p++ = ' ';
-    }
-    *p++ = '\n';
-    *p = 0;
-    
-    return str;
-}
+#define MAX_FILE_SIZE (64 * 1024)
+#define KEY_CTRL_C    3
+#define KEY_CTRL_D    4
+#define KEY_CTRL_S    19
+#define KEY_BACKSPACE '\b'
+#define KEY_ENTER     '\n'
+#define KEY_RETURN    '\r'
 
 extern "C" int cmd_write(int argc, char** argv) {
-    if (argc < 3) {
-        terminal_writestring("Usage: write <path> <text...>\n");
+    if (argc < 2) {
+        terminal_writestring("Usage: write <path>\n");
         return -1;
     }
 
     const char* path = argv[1];
-    char* new_text = join_args(argc, argv, 2);
-    if (!new_text) {
-        terminal_writestring("Error: Out of memory\n");
-        return -1;
-    }
-    
-    size_t new_len = strlen(new_text);
 
-    /* Ensure Disk (FAT32) is mounted */
+    /* 1. Automount FAT32 */
     fat_automount();
 
-    /* Try to read existing file to support append */
-    size_t max_read = 64 * 1024; // 64KB limit for simple text files
-    char* existing_buf = (char*)kmalloc(max_read);
-    int existing_size = 0;
-    
-    if (existing_buf) {
-        int r = fat32_read_file(path, existing_buf, max_read);
-        if (r > 0) {
-            existing_size = r;
-        }
-    }
-
-    /* Allocate combined buffer */
-    size_t total_size = existing_size + new_len;
-    char* final_buf = (char*)kmalloc(total_size + 1);
-    
-    if (!final_buf) {
-        terminal_writestring("Error: Out of memory for file write\n");
-        kfree(new_text);
-        if (existing_buf) kfree(existing_buf);
+    /* 2. Allocate Buffer */
+    char* buffer = (char*)kmalloc(MAX_FILE_SIZE);
+    if (!buffer) {
+        terminal_writestring("Error: Out of memory (64KB limit)\n");
         return -1;
     }
 
-    /* Combine: Old + New */
-    if (existing_size > 0) {
-        memcpy(final_buf, existing_buf, existing_size);
-    }
-    memcpy(final_buf + existing_size, new_text, new_len);
-    final_buf[total_size] = 0;
+    uint32_t current_size = 0;
 
-    /* Write back to disk */
-    int res = fat32_create_file(path, final_buf, total_size);
-    
-    /* Cleanup disk buffers */
-    kfree(final_buf);
-    if (existing_buf) kfree(existing_buf);
-
-    if (res == 0) {
-        if (existing_size > 0) {
-            terminal_writestring("Appended to file (Disk).\n");
-            serial("[WRITE] append %s: %d bytes\n", path, new_len);
-        } else {
-            terminal_writestring("Created file (Disk).\n");
-            serial("[WRITE] created %s\n", path);
-        }
-        kfree(new_text);
-        return 0;
+    /* 3. Load existing file content */
+    int bytes_read = fat32_read_file(path, buffer, MAX_FILE_SIZE);
+    if (bytes_read > 0) {
+        current_size = (uint32_t)bytes_read;
+        terminal_printf("Loaded %d bytes from '%s'.\n", current_size, path);
     } else {
-        terminal_writestring("Error: Failed to write to disk (FAT32).\n");
-        serial("[WRITE] Disk write failed for %s\n", path);
+        terminal_printf("New file: '%s'\n", path);
     }
 
-    kfree(new_text);
-    return -1;
+    /* 4. UI Header */
+    terminal_writestring("Chrysalis Line Editor\n");
+    terminal_writestring("Type text. ENTER for new line.\n");
+    terminal_writestring("Ctrl+S or Ctrl+D to Save & Exit | Ctrl+C to Abort\n");
+    terminal_writestring("---------------------------------------\n");
+
+    serial("[WRITE] Editor started for %s\n", path);
+
+    /* 5. Input Loop */
+    input_event_t ev;
+    bool running = true;
+    bool save = false;
+
+    while (running) {
+        if (input_pop(&ev)) {
+            if (ev.type == INPUT_KEYBOARD && ev.pressed) {
+                char c = (char)ev.keycode;
+
+                if (c == KEY_CTRL_C) {
+                    terminal_writestring("^C\nAborted.\n");
+                    serial("[WRITE] Aborted by user.\n");
+                    running = false;
+                    save = false;
+                }
+                else if (c == KEY_CTRL_D || c == KEY_CTRL_S) {
+                    terminal_writestring(c == KEY_CTRL_D ? "^D\n" : "^S\n");
+                    running = false;
+                    save = true;
+                }
+                else if (c == KEY_BACKSPACE) {
+                    if (current_size > 0) {
+                        /* Simple backspace: remove last char from buffer and screen */
+                        current_size--;
+                        terminal_putchar('\b');
+                        terminal_putchar(' ');
+                        terminal_putchar('\b');
+                    }
+                }
+                else if (c == KEY_RETURN || c == KEY_ENTER) {
+                    if (current_size < MAX_FILE_SIZE - 1) {
+                        buffer[current_size++] = '\n';
+                        terminal_putchar('\n');
+                    }
+                }
+                else if (c >= 32 && c <= 126) { /* Printable characters */
+                    if (current_size < MAX_FILE_SIZE - 1) {
+                        buffer[current_size++] = c;
+                        terminal_putchar(c);
+                    }
+                }
+            }
+        } else {
+            /* Wait for interrupt to avoid burning CPU */
+            asm volatile("hlt");
+        }
+    }
+
+    /* 6. Save or Discard */
+    int ret = 0;
+    if (save) {
+        terminal_writestring("Saving... ");
+        int r = fat32_create_file(path, buffer, current_size);
+        if (r == 0) {
+            terminal_writestring("OK.\n");
+            serial("[WRITE] Saved %d bytes to %s\n", current_size, path);
+        } else {
+            terminal_writestring("FAILED.\n");
+            serial("[WRITE] Save failed for %s\n", path);
+            ret = -1;
+        }
+    }
+
+    kfree(buffer);
+    return ret;
 }

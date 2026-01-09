@@ -152,6 +152,12 @@ extern "C" void keyboard_handler(registers_t* regs)
                         if (scancode < 128) {
                             c = shift_pressed ? keymap_us_shift[scancode] : keymap_us[scancode];
                         }
+
+                        /* Apply Control Modifier (Ctrl+A..Z -> 1..26) */
+                        if (ctrl_pressed && c) {
+                            if (c >= 'a' && c <= 'z') c -= 96;
+                            else if (c >= 'A' && c <= 'Z') c -= 64;
+                        }
                         
                         if (c) {
                             input_push_key((uint32_t)c, true);
