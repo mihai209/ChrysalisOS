@@ -179,7 +179,7 @@ extern "C" void panic_render_pretty(const char* msg) {
     line += 1;
 
     // Footer
-    draw_string(indent, line++, "Press M for emergency reboot");
+    draw_string(indent, line++, "Force shutdown the system from the power button.");
     draw_string(indent, line++, "Chrysalis OS - chrysalisos.netlify.app");
 
     // Protecție contra depășire (șterge jos dacă e cazul)
