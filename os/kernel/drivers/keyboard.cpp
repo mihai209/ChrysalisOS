@@ -8,6 +8,7 @@
 #include "../input/input.h"
 #include "../video/fb_console.h"
 #include "mouse.h" /* Pentru mouse_init la reload */
+#include "../vt/vt.h"
 
 /* PS/2 Ports */
 #define PS2_DATA    0x60
@@ -124,6 +125,13 @@ extern "C" void keyboard_handler(registers_t* regs)
             else if (scancode == 0x1D) ctrl_pressed = true;
             else if (scancode == 0x38) alt_pressed = true;
             else {
+                /* VT Switching: Ctrl + Alt + F1..F8 */
+                if (ctrl_pressed && alt_pressed && scancode >= 0x3B && scancode <= 0x42) {
+                    int vt_idx = scancode - 0x3B;
+                    vt_switch(vt_idx);
+                    return;
+                }
+
                 /* Handle Special Keys with E0 prefix */
                 if (e0_prefix) {
                     if (scancode == 0x49) fb_cons_scroll(-10);      /* Page Up */

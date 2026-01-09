@@ -78,6 +78,7 @@
 #include "video/gpu.h"
 #include "video/gpu_bochs.h"
 #include "smp/multiboot.h"
+#include "vt/vt.h"
 
 
 
@@ -534,6 +535,9 @@ extern "C" void kernel_main(uint32_t magic, uint32_t addr) {
         fb_cons_init();
         terminal_set_backend_fb(true);
     }
+    
+    /* Initialize Virtual Terminals (must be after fb_cons_init) */
+    vt_init();
 
     /* === NEW ARCHITECTURE INIT (Moved after Paging) === */
     input_init();

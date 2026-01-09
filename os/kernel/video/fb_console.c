@@ -19,13 +19,6 @@ static uint32_t cursor_y = 0;
 static uint32_t max_cols = 0;
 static uint32_t max_rows = 0;
 
-/* Text Buffer for fast scrolling and redraw (Shadow Buffer) */
-typedef struct {
-    char c;
-    uint32_t fg;
-    uint32_t bg;
-} console_cell_t;
-
 /* Scrollback Configuration */
 #define HISTORY_ROWS 400
 static console_cell_t* history_buffer = 0;
@@ -33,7 +26,11 @@ static int history_head = 0;  /* Index for next write */
 static int history_count = 0; /* Total lines in history */
 static int view_offset = 0;   /* 0 = live, >0 = scrolled back lines */
 
-static console_cell_t* text_buffer = 0;
+/* State pointers (can be swapped by VT) */
+static console_cell_t* active_text_buffer = 0;
+static uint32_t* active_cursor_x = &cursor_x;
+static uint32_t* active_cursor_y = &cursor_y;
+
 
 #define FONT_W 8
 #define FONT_H 16
@@ -65,8 +62,8 @@ static void draw_char_at(uint32_t cx, uint32_t cy, char c, uint32_t fg, uint32_t
 }
 
 /* Redraw the entire screen from the text buffer */
-static void redraw_screen(void) {
-    if (!text_buffer) return;
+void fb_cons_redraw(void) {
+    if (!active_text_buffer) return;
     
     /* If viewing history, we need to compose the view */
     if (view_offset > 0) {
@@ -77,7 +74,7 @@ static void redraw_screen(void) {
             
             if (logical_line >= 0) {
                 /* Line is in active text buffer */
-                src_row = &text_buffer[logical_line * max_cols];
+                src_row = &active_text_buffer[logical_line * max_cols];
             } else {
                 /* Line is in history */
                 int hist_depth = -logical_line; // 1-based depth
@@ -97,7 +94,7 @@ static void redraw_screen(void) {
     
     for (uint32_t y = 0; y < max_rows; y++) {
         for (uint32_t x = 0; x < max_cols; x++) {
-            console_cell_t* cell = &text_buffer[y * max_cols + x];
+            console_cell_t* cell = &active_text_buffer[y * max_cols + x];
             draw_char_at(x, y, cell->c, cell->fg, cell->bg);
         }
     }
@@ -105,11 +102,11 @@ static void redraw_screen(void) {
 
 /* Scroll the screen up by one line using the text buffer */
 static void scroll(void) {
-    if (!text_buffer) return;
+    if (!active_text_buffer) return;
 
     /* Save top line to history before it disappears */
     if (history_buffer) {
-        memcpy(&history_buffer[history_head * max_cols], text_buffer, max_cols * sizeof(console_cell_t));
+        memcpy(&history_buffer[history_head * max_cols], active_text_buffer, max_cols * sizeof(console_cell_t));
         
         history_head = (history_head + 1) % HISTORY_ROWS;
         if (history_count < HISTORY_ROWS) {
@@ -121,10 +118,10 @@ static void scroll(void) {
 
     /* Move text buffer up in RAM (Fast) */
     uint32_t count = (max_rows - 1) * max_cols;
-    memmove(text_buffer, text_buffer + max_cols, count * sizeof(console_cell_t));
+    memmove(active_text_buffer, active_text_buffer + max_cols, count * sizeof(console_cell_t));
 
     /* Clear last row in buffer */
-    console_cell_t* last_row = text_buffer + count;
+    console_cell_t* last_row = active_text_buffer + count;
     for (uint32_t i = 0; i < max_cols; i++) {
         last_row[i].c = ' ';
         last_row[i].fg = current_fg;
@@ -132,7 +129,7 @@ static void scroll(void) {
     }
 
     /* Redraw screen from buffer (Faster and cleaner than VRAM read/write) */
-    redraw_screen();
+    fb_cons_redraw();
 }
 
 /* Draw cursor (block) */
@@ -141,24 +138,24 @@ static void draw_cursor(int on) {
     if (!gpu) return;
     
     /* Calculate visual position based on scroll offset */
-    int visual_y = (int)cursor_y + view_offset;
+    int visual_y = (int)(*active_cursor_y) + view_offset;
     
     /* If cursor is pushed off-screen by scrolling back, don't draw it */
     if (visual_y >= (int)max_rows) return;
 
     uint32_t start_y = visual_y * FONT_H;
-    uint32_t start_x = cursor_x * FONT_W;
+    uint32_t start_x = (*active_cursor_x) * FONT_W;
     
     /* Bounds check */
     if (start_x + FONT_W > gpu->width || start_y + FONT_H > gpu->height) return;
 
     /* If turning off, restore character from buffer */
     if (!on) {
-        if (text_buffer) {
-            console_cell_t* cell = &text_buffer[cursor_y * max_cols + cursor_x];
-            draw_char_at(cursor_x, visual_y, cell->c, cell->fg, cell->bg);
+        if (active_text_buffer) {
+            console_cell_t* cell = &active_text_buffer[(*active_cursor_y) * max_cols + (*active_cursor_x)];
+            draw_char_at((*active_cursor_x), visual_y, cell->c, cell->fg, cell->bg);
         } else {
-             draw_char_at(cursor_x, visual_y, ' ', current_fg, current_bg);
+             draw_char_at((*active_cursor_x), visual_y, ' ', current_fg, current_bg);
         }
         return;
     }
@@ -191,22 +188,23 @@ void fb_cons_init(void) {
     cursor_y = 0;
     
     /* Allocate text buffer */
-    if (text_buffer) kfree(text_buffer);
-    text_buffer = (console_cell_t*)kmalloc(max_cols * max_rows * sizeof(console_cell_t));
+    /* Note: This initial buffer is used for VT0 or boot log until VT init takes over */
+    console_cell_t* boot_buf = (console_cell_t*)kmalloc(max_cols * max_rows * sizeof(console_cell_t));
     
     if (history_buffer) kfree(history_buffer);
     history_buffer = (console_cell_t*)kmalloc(max_cols * HISTORY_ROWS * sizeof(console_cell_t));
     
-    if (!text_buffer || !history_buffer) {
+    if (!boot_buf || !history_buffer) {
         serial("[FB_CONS] Error: Failed to allocate buffers!\n");
         return;
     }
+    active_text_buffer = boot_buf;
 
     /* Initialize text buffer */
     for (uint32_t i = 0; i < max_cols * max_rows; i++) {
-        text_buffer[i].c = ' ';
-        text_buffer[i].fg = current_fg;
-        text_buffer[i].bg = current_bg;
+        active_text_buffer[i].c = ' ';
+        active_text_buffer[i].fg = current_fg;
+        active_text_buffer[i].bg = current_bg;
     }
     
     history_head = 0;
@@ -224,72 +222,72 @@ void fb_cons_init(void) {
 static void fb_cons_putc_internal(char c) {
 
     if (c == '\n') {
-        cursor_x = 0;
-        cursor_y++;
+        *active_cursor_x = 0;
+        (*active_cursor_y)++;
         /* Auto-scroll if we hit the bottom */
-        if (cursor_y >= max_rows) {
+        if (*active_cursor_y >= max_rows) {
             scroll();
-            cursor_y = max_rows - 1;
+            *active_cursor_y = max_rows - 1;
         }
     } else if (c == '\r') {
-        cursor_x = 0;
+        *active_cursor_x = 0;
     } else if (c == '\b') {
-        if (cursor_x > 0) {
-            cursor_x--;
-        } else if (cursor_y > 0) {
-            cursor_y--;
-            cursor_x = max_cols - 1;
+        if (*active_cursor_x > 0) {
+            (*active_cursor_x)--;
+        } else if (*active_cursor_y > 0) {
+            (*active_cursor_y)--;
+            *active_cursor_x = max_cols - 1;
         }
 
     } else if (c == '\t') {
-        int spaces = 8 - (cursor_x % 8);
+        int spaces = 8 - ((*active_cursor_x) % 8);
         for (int i = 0; i < spaces; i++) {
             /* Wrap if needed inside tab loop */
-            if (cursor_x >= max_cols) {
-                cursor_x = 0;
-                cursor_y++;
-                if (cursor_y >= max_rows) {
+            if (*active_cursor_x >= max_cols) {
+                *active_cursor_x = 0;
+                (*active_cursor_y)++;
+                if (*active_cursor_y >= max_rows) {
                     scroll();
-                    cursor_y = max_rows - 1;
+                    *active_cursor_y = max_rows - 1;
                 }
             }
             
-            console_cell_t* cell = &text_buffer[cursor_y * max_cols + cursor_x];
+            console_cell_t* cell = &active_text_buffer[(*active_cursor_y) * max_cols + (*active_cursor_x)];
             cell->c = ' ';
             cell->fg = current_fg;
             cell->bg = current_bg;
-            draw_char_at(cursor_x, cursor_y, ' ', current_fg, current_bg);
-            cursor_x++;
+            draw_char_at(*active_cursor_x, *active_cursor_y, ' ', current_fg, current_bg);
+            (*active_cursor_x)++;
         }
     } else if (c >= ' ') {
         /* Wrap text if we are at the edge */
-        if (cursor_x >= max_cols) {
-            cursor_x = 0;
-            cursor_y++;
-            if (cursor_y >= max_rows) {
+        if (*active_cursor_x >= max_cols) {
+            *active_cursor_x = 0;
+            (*active_cursor_y)++;
+            if (*active_cursor_y >= max_rows) {
                 scroll();
-                cursor_y = max_rows - 1;
+                *active_cursor_y = max_rows - 1;
             }
         }
 
-        if (cursor_x < max_cols && cursor_y < max_rows) {
-            console_cell_t* cell = &text_buffer[cursor_y * max_cols + cursor_x];
+        if (*active_cursor_x < max_cols && *active_cursor_y < max_rows) {
+            console_cell_t* cell = &active_text_buffer[(*active_cursor_y) * max_cols + (*active_cursor_x)];
             cell->c = c;
             cell->fg = current_fg;
             cell->bg = current_bg;
-            draw_char_at(cursor_x, cursor_y, c, current_fg, current_bg);
+            draw_char_at(*active_cursor_x, *active_cursor_y, c, current_fg, current_bg);
         }
-        cursor_x++;
+        (*active_cursor_x)++;
     }
 }
 
 void fb_cons_putc(char c) {
-    if (!gpu_get_primary() || !text_buffer) return;
+    if (!gpu_get_primary() || !active_text_buffer) return;
 
     /* Auto-follow: Reset scrollback on input */
     if (view_offset > 0) {
         view_offset = 0;
-        redraw_screen();
+        fb_cons_redraw();
         serial("[FB_CONS] Auto-follow: snapped to bottom\n");
     }
 
@@ -300,11 +298,11 @@ void fb_cons_putc(char c) {
 }
 
 void fb_cons_puts(const char* s) {
-    if (!gpu_get_primary() || !text_buffer) return;
+    if (!gpu_get_primary() || !active_text_buffer) return;
 
     if (view_offset > 0) {
         view_offset = 0;
-        redraw_screen();
+        fb_cons_redraw();
         serial("[FB_CONS] Auto-follow: snapped to bottom\n");
     }
 
@@ -318,19 +316,19 @@ void fb_cons_puts(const char* s) {
 
 void fb_cons_clear(void) {
     gpu_device_t* gpu = gpu_get_primary();
-    if (!gpu || !text_buffer) return;
+    if (!gpu || !active_text_buffer) return;
     serial("[FB_CONS] Clearing screen...\n");
 
     /* Clear text buffer */
     for (uint32_t i = 0; i < max_cols * max_rows; i++) {
-        text_buffer[i].c = ' ';
-        text_buffer[i].fg = current_fg;
-        text_buffer[i].bg = current_bg;
+        active_text_buffer[i].c = ' ';
+        active_text_buffer[i].fg = current_fg;
+        active_text_buffer[i].bg = current_bg;
     }
     
     /* Reset cursor */
-    cursor_x = 0;
-    cursor_y = 0;
+    *active_cursor_x = 0;
+    *active_cursor_y = 0;
     
     /* Note: We do NOT clear history on screen clear, similar to Linux terminal */
     view_offset = 0;
@@ -356,7 +354,18 @@ void fb_cons_scroll(int lines) {
     if (view_offset != old_offset) {
         serial("[FB_CONS] Scroll offset: %d\n", view_offset);
         draw_cursor(0); // Hide cursor at old position
-        redraw_screen();
+        fb_cons_redraw();
         draw_cursor(1); // Show cursor at new position (if visible)
     }
+}
+
+void fb_cons_get_dims(uint32_t* cols, uint32_t* rows) {
+    if (cols) *cols = max_cols;
+    if (rows) *rows = max_rows;
+}
+
+void fb_cons_set_state(console_cell_t* new_buf, uint32_t* new_cx, uint32_t* new_cy) {
+    active_text_buffer = new_buf;
+    active_cursor_x = new_cx;
+    active_cursor_y = new_cy;
 }

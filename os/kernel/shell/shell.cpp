@@ -13,6 +13,7 @@
 #define SHELL_MAX_ARGS 32
 #define HISTORY_SIZE 16
 #define PIPE_BUF_SIZE 4096
+#define MAX_SHELL_CONTEXTS 8
 
 /* Key definitions (ASCII control codes) */
 #define KEY_ENTER       '\n'
@@ -21,16 +22,20 @@
 #define KEY_CTRL_P      16  /* Up (Previous) */
 #define KEY_CTRL_N      14  /* Down (Next) */
 
-/* State */
-static char line[SHELL_BUF_SIZE];
-static int line_len = 0;
-static int cursor = 0;
-static int last_rendered_len = 0;
+/* Shell Context Structure */
+typedef struct {
+    char line[SHELL_BUF_SIZE];
+    int line_len;
+    int cursor;
+    int last_rendered_len;
+    char history[HISTORY_SIZE][SHELL_BUF_SIZE];
+    int hist_head;
+    int hist_count;
+    int hist_pos;
+} shell_ctx_t;
 
-static char history[HISTORY_SIZE][SHELL_BUF_SIZE];
-static int hist_head = 0; // Next write slot
-static int hist_count = 0;
-static int hist_pos = -1; // -1 = current editing, 0..count-1 = history index
+static shell_ctx_t contexts[MAX_SHELL_CONTEXTS];
+static int active_ctx_id = 0;
 
 /* Import serial logging */
 extern "C" void serial(const char *fmt, ...);
@@ -38,6 +43,8 @@ extern "C" void serial(const char *fmt, ...);
 /* --- Helpers --- */
 
 static void shell_render_line() {
+    shell_ctx_t* ctx = &contexts[active_ctx_id];
+
     /* Move to start of line */
     terminal_putchar('\r');
     
@@ -45,74 +52,76 @@ static void shell_render_line() {
     shell_prompt();
     
     /* Render buffer */
-    for (int i = 0; i < line_len; i++) {
-        terminal_putchar(line[i]);
+    for (int i = 0; i < ctx->line_len; i++) {
+        terminal_putchar(ctx->line[i]);
     }
     
     /* Clear trailing garbage if line shrank */
-    if (last_rendered_len > line_len) {
-        for (int i = 0; i < (last_rendered_len - line_len); i++) terminal_putchar(' ');
-        for (int i = 0; i < (last_rendered_len - line_len); i++) terminal_putchar('\b');
+    if (ctx->last_rendered_len > ctx->line_len) {
+        for (int i = 0; i < (ctx->last_rendered_len - ctx->line_len); i++) terminal_putchar(' ');
+        for (int i = 0; i < (ctx->last_rendered_len - ctx->line_len); i++) terminal_putchar('\b');
     }
-    last_rendered_len = line_len;
+    ctx->last_rendered_len = ctx->line_len;
     
     /* Move cursor visually to correct position */
-    for (int i = line_len; i > cursor; i--) {
+    for (int i = ctx->line_len; i > ctx->cursor; i--) {
         terminal_putchar('\b');
     }
 }
 
 static void shell_history_add(const char* cmd) {
+    shell_ctx_t* ctx = &contexts[active_ctx_id];
     if (!cmd || !*cmd) return;
     
     /* Don't add duplicates of the immediate last command */
-    if (hist_count > 0) {
-        int last_idx = (hist_head - 1 + HISTORY_SIZE) % HISTORY_SIZE;
-        if (strcmp(history[last_idx], cmd) == 0) return;
+    if (ctx->hist_count > 0) {
+        int last_idx = (ctx->hist_head - 1 + HISTORY_SIZE) % HISTORY_SIZE;
+        if (strcmp(ctx->history[last_idx], cmd) == 0) return;
     }
     
     /* Add to ring buffer */
-    strcpy(history[hist_head], cmd);
-    hist_head = (hist_head + 1) % HISTORY_SIZE;
-    if (hist_count < HISTORY_SIZE) hist_count++;
+    strcpy(ctx->history[ctx->hist_head], cmd);
+    ctx->hist_head = (ctx->hist_head + 1) % HISTORY_SIZE;
+    if (ctx->hist_count < HISTORY_SIZE) ctx->hist_count++;
     
     serial("[SHELL] History add: %s\n", cmd);
 }
 
 static void shell_history_nav(int dir) {
+    shell_ctx_t* ctx = &contexts[active_ctx_id];
     /* dir: 1 for UP (older), -1 for DOWN (newer) */
-    if (hist_count == 0) return;
+    if (ctx->hist_count == 0) return;
     
-    if (hist_pos == -1) {
+    if (ctx->hist_pos == -1) {
         /* Currently editing new line */
         if (dir == 1) {
-            hist_pos = 0; /* Go to latest history */
+            ctx->hist_pos = 0; /* Go to latest history */
         } else {
             return;
         }
     } else {
-        hist_pos += dir;
+        ctx->hist_pos += dir;
     }
     
     /* Bounds check */
-    if (hist_pos < -1) hist_pos = -1;
-    if (hist_pos >= hist_count) hist_pos = hist_count - 1;
+    if (ctx->hist_pos < -1) ctx->hist_pos = -1;
+    if (ctx->hist_pos >= ctx->hist_count) ctx->hist_pos = ctx->hist_count - 1;
     
     /* Load line */
-    if (hist_pos == -1) {
-        line[0] = 0;
-        line_len = 0;
-        cursor = 0;
+    if (ctx->hist_pos == -1) {
+        ctx->line[0] = 0;
+        ctx->line_len = 0;
+        ctx->cursor = 0;
     } else {
         /* Calculate actual index in ring buffer (0 = latest) */
-        int idx = (hist_head - 1 - hist_pos + HISTORY_SIZE * 2) % HISTORY_SIZE;
-        strcpy(line, history[idx]);
-        line_len = strlen(line);
-        cursor = line_len;
+        int idx = (ctx->hist_head - 1 - ctx->hist_pos + HISTORY_SIZE * 2) % HISTORY_SIZE;
+        strcpy(ctx->line, ctx->history[idx]);
+        ctx->line_len = strlen(ctx->line);
+        ctx->cursor = ctx->line_len;
     }
     
     shell_render_line();
-    serial("[SHELL] History nav: pos=%d\n", hist_pos);
+    serial("[SHELL] History nav: pos=%d\n", ctx->hist_pos);
 }
 
 static void shell_exec_single(char* cmd_str) {
@@ -194,16 +203,17 @@ static void shell_exec_single(char* cmd_str) {
 }
 
 static void shell_exec_line() {
+    shell_ctx_t* ctx = &contexts[active_ctx_id];
     terminal_putchar('\n');
     
-    if (line_len == 0) {
+    if (ctx->line_len == 0) {
         shell_prompt();
         return;
     }
     
     /* Add to history */
-    shell_history_add(line);
-    hist_pos = -1; // Reset history navigation
+    shell_history_add(ctx->line);
+    ctx->hist_pos = -1; // Reset history navigation
 
     /* Pipe buffers */
     char* buf_in = 0;
@@ -213,7 +223,7 @@ static void shell_exec_line() {
     size_t len_out = 0;
 
     /* Split by pipe '|' */
-    char* p = line;
+    char* p = ctx->line;
     char* cmd_start = p;
     
     while (*p) {
@@ -279,25 +289,26 @@ static void shell_exec_line() {
     if (buf_out) kfree(buf_out);
     
     /* Reset line */
-    line[0] = 0;
-    line_len = 0;
-    cursor = 0;
-    last_rendered_len = 0;
+    ctx->line[0] = 0;
+    ctx->line_len = 0;
+    ctx->cursor = 0;
+    ctx->last_rendered_len = 0;
     
     shell_prompt();
 }
 
 static void shell_autocomplete() {
+    shell_ctx_t* ctx = &contexts[active_ctx_id];
     /* Find word start */
-    int start = cursor;
-    while (start > 0 && line[start-1] != ' ') start--;
+    int start = ctx->cursor;
+    while (start > 0 && ctx->line[start-1] != ' ') start--;
     
-    int word_len = cursor - start;
+    int word_len = ctx->cursor - start;
     if (word_len == 0) return;
     
     char prefix[64];
     int i;
-    for(i=0; i<word_len && i<63; i++) prefix[i] = line[start+i];
+    for(i=0; i<word_len && i<63; i++) prefix[i] = ctx->line[start+i];
     prefix[i] = 0;
     
     serial("[SHELL] Autocomplete prefix: '%s'\n", prefix);
@@ -316,18 +327,18 @@ static void shell_autocomplete() {
         /* Complete it */
         const char* rest = last_match + word_len;
         while (*rest) {
-            if (line_len < SHELL_BUF_SIZE - 1) {
-                line[line_len++] = *rest;
-                line[line_len] = 0;
-                cursor++;
+            if (ctx->line_len < SHELL_BUF_SIZE - 1) {
+                ctx->line[ctx->line_len++] = *rest;
+                ctx->line[ctx->line_len] = 0;
+                ctx->cursor++;
             }
             rest++;
         }
         /* Add space */
-        if (line_len < SHELL_BUF_SIZE - 1) {
-            line[line_len++] = ' ';
-            line[line_len] = 0;
-            cursor++;
+        if (ctx->line_len < SHELL_BUF_SIZE - 1) {
+            ctx->line[ctx->line_len++] = ' ';
+            ctx->line[ctx->line_len] = 0;
+            ctx->cursor++;
         }
         shell_render_line();
     } else if (matches > 1) {
@@ -347,32 +358,39 @@ static void shell_autocomplete() {
 /* --- Public API --- */
 
 void shell_init() {
-    line[0] = 0;
-    line_len = 0;
-    cursor = 0;
-    hist_head = 0;
-    hist_count = 0;
-    hist_pos = -1;
-    
+    shell_init_context(0);
     serial("[SHELL] Initialized.\n");
     shell_prompt();
 }
 
+void shell_init_context(int id) {
+    if (id < 0 || id >= MAX_SHELL_CONTEXTS) return;
+    shell_ctx_t* ctx = &contexts[id];
+    ctx->line[0] = 0;
+    ctx->line_len = 0;
+    ctx->cursor = 0;
+    ctx->hist_head = 0;
+    ctx->hist_count = 0;
+    ctx->hist_pos = -1;
+    ctx->last_rendered_len = 0;
+}
+
 void shell_handle_char(char c) {
+    shell_ctx_t* ctx = &contexts[active_ctx_id];
     if (c == KEY_ENTER) {
         shell_exec_line();
         return;
     }
     
     if (c == KEY_BACKSPACE) {
-        if (cursor > 0) {
+        if (ctx->cursor > 0) {
             /* Shift left */
-            for (int i = cursor; i < line_len; i++) {
-                line[i-1] = line[i];
+            for (int i = ctx->cursor; i < ctx->line_len; i++) {
+                ctx->line[i-1] = ctx->line[i];
             }
-            line_len--;
-            cursor--;
-            line[line_len] = 0;
+            ctx->line_len--;
+            ctx->cursor--;
+            ctx->line[ctx->line_len] = 0;
             shell_render_line();
         }
         return;
@@ -395,24 +413,30 @@ void shell_handle_char(char c) {
     
     /* Printable characters */
     if (c >= 32 && c <= 126) {
-        if (line_len < SHELL_BUF_SIZE - 1) {
+        if (ctx->line_len < SHELL_BUF_SIZE - 1) {
             /* Insert at cursor */
-            for (int i = line_len; i > cursor; i--) {
-                line[i] = line[i-1];
+            for (int i = ctx->line_len; i > ctx->cursor; i--) {
+                ctx->line[i] = ctx->line[i-1];
             }
-            line[cursor] = c;
-            line_len++;
-            cursor++;
-            line[line_len] = 0;
+            ctx->line[ctx->cursor] = c;
+            ctx->line_len++;
+            ctx->cursor++;
+            ctx->line[ctx->line_len] = 0;
             shell_render_line();
         }
     }
 }
 
 void shell_reset_input(void) {
-    line[0] = 0;
-    line_len = 0;
-    cursor = 0;
+    shell_ctx_t* ctx = &contexts[active_ctx_id];
+    ctx->line[0] = 0;
+    ctx->line_len = 0;
+    ctx->cursor = 0;
+}
+
+void shell_set_active_context(int id) {
+    if (id < 0 || id >= MAX_SHELL_CONTEXTS) return;
+    active_ctx_id = id;
 }
 
 void shell_prompt(void) {

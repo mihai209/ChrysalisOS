@@ -121,6 +121,7 @@ OBJS = \
 	$(BUILD)/cmds/elf_crash.o \
 	$(BUILD)/cmds/write.o \
 	$(BUILD)/cmds/cs.o \
+	$(BUILD)/cmds/vt_cmd.o \
 	$(BUILD)/hardware/pci.o \
 	$(BUILD)/hardware/acpi.o \
 	$(BUILD)/arch/interrupts.o \
@@ -150,6 +151,7 @@ OBJS = \
 	$(BUILD)/fb_console.o \
 	$(BUILD)/gpu.o \
 	$(BUILD)/gpu_bochs.o \
+	$(BUILD)/vt.o \
 
 
 
@@ -496,6 +498,9 @@ $(BUILD)/cmds/cs.o: kernel/cmds/cs.cpp | dirs
 $(BUILD)/cmds/write.o: kernel/cmds/write.cpp | dirs
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
+$(BUILD)/cmds/vt_cmd.o: kernel/cmds/vt_cmd.cpp | dirs
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
 $(BUILD)/hardware/pci.o: kernel/hardware/pci.cpp
 	@mkdir -p $(BUILD)/hardware
 	$(CXX) $(CXXFLAGS) -c $< -o $@
@@ -615,6 +620,10 @@ $(BUILD)/gpu.o: kernel/video/gpu.c | dirs
 
 $(BUILD)/gpu_bochs.o: kernel/video/gpu_bochs.c | dirs
 	$(CC) $(CFLAGS) -c $< -o $@
+
+$(BUILD)/vt.o: kernel/vt/vt.c | dirs
+	$(CC) $(CFLAGS) -c $< -o $@
+
 # -------------------------
 # LINK
 # -------------------------

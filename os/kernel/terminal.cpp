@@ -3,6 +3,7 @@
 #include "video/fb_console.h"
 #include <stdarg.h>
 #include <stdint.h>
+#include "vt/vt.h"
 
 static uint16_t* vga = (uint16_t*)0xB8000;
 static int row = 0;
@@ -59,7 +60,8 @@ extern "C" void terminal_putchar(char c) {
     }
 
     if (use_fb_console) {
-        fb_cons_putc(c);
+        /* Route through VT subsystem to update active buffer */
+        vt_putc(c);
         return;
     }
 

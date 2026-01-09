@@ -35,21 +35,9 @@
 #include "../proc/exec.h"
 #include "write.h"
 #include "cs.h"
+#include "vt_cmd.h"
 // Minimal freestanding helpers (no libc)
 typedef unsigned long size_t;
-
-static size_t k_strlen(const char* s) {
-    const char* p = s;
-    while (*p) ++p;
-    return (size_t)(p - s);
-}
-
-static void* k_memcpy(void* dst, const void* src, size_t n) {
-    unsigned char* d = (unsigned char*)dst;
-    const unsigned char* s = (const unsigned char*)src;
-    for (size_t i = 0; i < n; ++i) d[i] = s[i];
-    return dst;
-}
 
 /*
  * Wrappers:
@@ -143,7 +131,8 @@ static int wrap_cmd_elf_debug(int argc, char **argv) { return wrap_new_int(cmd_e
 static int wrap_cmd_elf_crash(int argc, char **argv) { return wrap_new_int(cmd_elf_crash, argc, argv); }  /* int cmd_elf_crash(int,char**) */
 static int wrap_cmd_pmm(int argc, char **argv)       { return wrap_new_int(cmd_pmm, argc, argv); }        /* int cmd_pmm(int,char**) */
 static int wrap_cmd_write(int argc, char **argv)     { return wrap_new_int(cmd_write, argc, argv); }      /* int cmd_write(int,char**) */
-static int wrap_cmd_cs(int argc, char **argv)        { return wrap_new_int(cmd_cs_main, argc, argv); }      /* int cmd_cs(int,char**)
+static int wrap_cmd_cs(int argc, char **argv)        { return wrap_new_int(cmd_cs_main, argc, argv); }    /* int cmd_cs(int,char**) */
+static int wrap_cmd_vt(int argc, char **argv)        { return wrap_new_int(cmd_vt, argc, argv); }         /* int cmd_vt(int,char**) */
 /* Wrapper for execve */
 static int wrap_cmd_exec(int argc, char **argv) {
     if (argc < 2) return -1;
@@ -185,6 +174,7 @@ Command command_table[] = {
     { "uptime",    wrap_cmd_uptime },
     { "vfs",       wrap_cmd_vfs },
     { "write",     wrap_cmd_write },
+    { "vt",        wrap_cmd_vt },
 };
 
 int command_count = sizeof(command_table) / sizeof(Command);
