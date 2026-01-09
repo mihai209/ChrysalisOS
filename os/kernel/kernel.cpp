@@ -80,6 +80,8 @@
 #include "smp/multiboot.h"
 #include "vt/vt.h"
 #include "colors/cl.h"
+#include "video/surface.h"
+#include "video/compositor.h"
 
 
 
@@ -520,6 +522,17 @@ extern "C" void kernel_main(uint32_t magic, uint32_t addr) {
         }
     } else {
         serial("[KERNEL] Primary GPU already present (Bochs/QEMU), skipping VESA init.\n");
+        
+        /* FIX: Register the existing GPU with the framebuffer abstraction so the compositor sees it */
+        gpu_device_t* gpu = gpu_get_primary();
+        if (gpu) {
+            fb_init(gpu->phys_addr, 
+                    gpu->width, 
+                    gpu->height, 
+                    gpu->pitch, 
+                    gpu->bpp, 
+                    1 /* RGB */);
+        }
     }
 
     /* Visual test: Draw a blue rectangle to confirm video works */
@@ -542,6 +555,19 @@ extern "C" void kernel_main(uint32_t magic, uint32_t addr) {
     
     /* Initialize Virtual Terminals (must be after fb_cons_init) */
     vt_init();
+
+    /* Initialize Compositor */
+    compositor_init();
+
+    /* Create a test surface (Red Box) */
+    surface_t* test_surf = surface_create(100, 100);
+    if (test_surf) {
+        surface_clear(test_surf, 0xFFFF0000); // Red
+        test_surf->x = 500;
+        test_surf->y = 100;
+        compositor_add_surface(test_surf);
+        compositor_render(); // Render once
+    }
 
     /* === NEW ARCHITECTURE INIT (Moved after Paging) === */
     input_init();

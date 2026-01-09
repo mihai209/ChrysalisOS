@@ -157,6 +157,8 @@ OBJS = \
 	$(BUILD)/gpu_bochs.o \
 	$(BUILD)/vt.o \
 	$(BUILD)/colors/cl.o \
+	$(BUILD)/surface.o \
+	$(BUILD)/compositor.o \
 
 
 
@@ -643,6 +645,12 @@ $(BUILD)/vt.o: kernel/vt/vt.c | dirs
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(BUILD)/colors/cl.o: kernel/colors/cl.c | dirs
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(BUILD)/surface.o: kernel/video/surface.c | dirs
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(BUILD)/compositor.o: kernel/video/compositor.c | dirs
 	$(CC) $(CFLAGS) -c $< -o $@
 
 # -------------------------
