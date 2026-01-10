@@ -99,3 +99,16 @@ grep -R "cmd_[a-zA-Z_]*(" kernel/cmds/*.h
 grub-file --is-x86-multiboot2 iso/boot/kernel.bin
 
 objdump -h iso/boot/kernel.bin | grep multiboot
+
+convert wallpaper.jpg -resize 1024x768^ -gravity center -extent 1024x768 wallpaper.bmp
+
+convert wallpaper.bmp \
+  -resize 20x20! \
+  -type Grayscale \
+  -depth 8 \
+  BMP3:wallpaper.bmp
+
+convert wallpaper.bmp \
+  -resize 160x100! \
+  -depth 8 \
+  BMP3:wallpaper.bmp

@@ -197,6 +197,101 @@ extern "C" int fat32_read_file(const char* path, void* buf, uint32_t max_size) {
     return bytes_read;
 }
 
+extern "C" int fat32_read_file_offset(const char* path, void* buf, uint32_t size, uint32_t offset) {
+    if (!is_fat_initialized) return -1;
+
+    uint8_t* sector = (uint8_t*)kmalloc(512);
+    if (!sector) return -1;
+
+    /* 1. Read BPB */
+    if (disk_read_sector(current_lba, sector) != 0) { kfree(sector); return -1; }
+    struct fat_bpb* bpb = (struct fat_bpb*)sector;
+
+    if (bpb->bytes_per_sector == 0) { kfree(sector); return -1; }
+
+    uint32_t fat_start = current_lba + bpb->reserved_sectors;
+    uint32_t data_start = fat_start + (bpb->fats_count * bpb->sectors_per_fat_32);
+    uint32_t root_cluster = bpb->root_cluster;
+    uint8_t spc = bpb->sectors_per_cluster;
+    uint16_t bps = bpb->bytes_per_sector;
+    uint32_t cluster_bytes = spc * bps;
+
+    /* 2. Find File */
+    char target[11];
+    to_dos_name(path, target);
+
+    uint32_t current_cluster = root_cluster;
+    uint32_t file_cluster = 0;
+    uint32_t file_size = 0;
+    bool found = false;
+
+    /* Scan root dir (simplified) */
+    uint32_t lba = data_start + (current_cluster - 2) * spc;
+    for (int i = 0; i < spc; i++) {
+        disk_read_sector(lba + i, sector);
+        struct fat_dir_entry* entries = (struct fat_dir_entry*)sector;
+        for (int j = 0; j < 512 / 32; j++) {
+            if (entries[j].name[0] == 0) break;
+            if ((uint8_t)entries[j].name[0] == 0xE5) continue;
+            if (entries[j].attr & 0x0F) continue;
+
+            if (memcmp(entries[j].name, target, 11) == 0) {
+                file_cluster = (entries[j].cluster_hi << 16) | entries[j].cluster_low;
+                file_size = entries[j].size;
+                found = true;
+                break;
+            }
+        }
+        if (found) break;
+    }
+
+    if (!found) { kfree(sector); return -1; }
+    if (offset >= file_size) { kfree(sector); return 0; }
+    if (offset + size > file_size) size = file_size - offset;
+
+    /* 3. Seek to cluster */
+    current_cluster = file_cluster;
+    uint32_t clusters_to_skip = offset / cluster_bytes;
+    uint32_t offset_in_cluster = offset % cluster_bytes;
+
+    for (uint32_t i = 0; i < clusters_to_skip; i++) {
+        uint32_t fat_sector = fat_start + (current_cluster * 4) / bps;
+        uint32_t fat_offset = (current_cluster * 4) % bps;
+        disk_read_sector(fat_sector, sector);
+        current_cluster = (*(uint32_t*)(sector + fat_offset)) & 0x0FFFFFFF;
+        if (current_cluster >= 0x0FFFFFF8) { kfree(sector); return -1; }
+    }
+
+    /* 4. Read Data */
+    uint32_t bytes_read = 0;
+    uint8_t* out = (uint8_t*)buf;
+
+    while (bytes_read < size) {
+        uint32_t cluster_lba = data_start + (current_cluster - 2) * spc;
+        uint32_t cluster_offset = (bytes_read == 0) ? offset_in_cluster : 0;
+        uint32_t start_sector = cluster_offset / bps;
+        uint32_t sector_offset = cluster_offset % bps;
+
+        for (int i = start_sector; i < spc && bytes_read < size; i++) {
+            disk_read_sector(cluster_lba + i, sector);
+            uint32_t available = bps - sector_offset;
+            uint32_t to_copy = (size - bytes_read > available) ? available : (size - bytes_read);
+            memcpy(out + bytes_read, sector + sector_offset, to_copy);
+            bytes_read += to_copy;
+            sector_offset = 0;
+        }
+
+        uint32_t fat_sector = fat_start + (current_cluster * 4) / bps;
+        uint32_t fat_offset = (current_cluster * 4) % bps;
+        disk_read_sector(fat_sector, sector);
+        current_cluster = (*(uint32_t*)(sector + fat_offset)) & 0x0FFFFFFF;
+        if (current_cluster >= 0x0FFFFFF8) break;
+    }
+
+    kfree(sector);
+    return bytes_read;
+}
+
 extern "C" int fat32_create_file(const char* path, const void* data, uint32_t size) {
     if (!is_fat_initialized) return -1;
 

@@ -13,6 +13,9 @@ void fat_automount(void);
 /* Listează conținutul unui director (path="/" pentru root) */
 void fat32_list_directory(const char* path);
 
+/* Citește dintr-un fișier de la un offset specificat (pentru fișiere mari) */
+int fat32_read_file_offset(const char* path, void* buf, uint32_t size, uint32_t offset);
+
 /* Delete a file from the root directory */
 int fat32_delete_file(const char* path);
 

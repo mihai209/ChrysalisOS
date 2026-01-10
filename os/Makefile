@@ -167,6 +167,7 @@ OBJS = \
 	$(BUILD)/ui/flyui/core.o \
 	$(BUILD)/ui/flyui/widget.o \
 	$(BUILD)/ui/flyui/event.o \
+	$(BUILD)/ui/flyui/bmp.o \
 	$(BUILD)/ui/flyui/draw.o \
 	$(BUILD)/ui/flyui/surface.o \
 	$(BUILD)/ui/flyui/layout.o \
@@ -702,6 +703,10 @@ $(BUILD)/ui/flyui/event.o: kernel/ui/flyui/event.c | dirs
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c $< -o $@
 
+$(BUILD)/ui/flyui/bmp.o: kernel/ui/flyui/bmp.c | dirs
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) -c $< -o $@
+
 $(BUILD)/ui/flyui/draw.o: kernel/ui/flyui/draw.c | dirs
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c $< -o $@
@@ -755,6 +760,12 @@ clean:
 	rm -rf $(BUILD) *.iso $(ISO)/boot/$(KERNEL)
 
 # -------------------------
+# ASSETS
+# -------------------------
+assets:
+	mcopy -i hdd.img@@1M -o kernel/ui/flyui/assets/wallpaper.bmp ::/bg.bmp
+
+# -------------------------
 # HELP
 # -------------------------
 
@@ -767,5 +778,6 @@ help:
 	@echo "make run       -> rulează OS-ul în QEMU (cu grafică)"
 	@echo "make consolerun-> rulează OS-ul în QEMU (doar consolă)"
 	@echo "make clean     -> șterge fișierele generate"
+	@echo "make assets    -> copiază wallpaper.bmp în hdd.img (necesită mtools)"
 	@echo "make help      -> afișează acest mesaj"
 	@echo ""

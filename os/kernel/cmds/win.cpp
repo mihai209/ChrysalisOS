@@ -8,6 +8,7 @@
 #include "../ui/flyui/widgets/widgets.h"
 #include "../ui/flyui/theme.h"
 #include "../shell/shell.h"
+#include "../ui/flyui/bmp.h"
 
 extern "C" void serial(const char *fmt, ...);
 
@@ -50,7 +51,12 @@ static void create_program_manager() {
     /* 1. Create Surface */
     surface_t* s = surface_create(w, h);
     if (!s) return;
-    surface_clear(s, FLY_COLOR_BG);
+    
+    /* Try to load wallpaper, fallback to solid color */
+    if (fly_load_bmp_to_surface(s, "/bg.bmp") != 0) {
+        serial("[WIN] Wallpaper not found or invalid, using default color.\n");
+        surface_clear(s, FLY_COLOR_BG);
+    }
 
     /* 2. Init FlyUI */
     progman_ctx = flyui_init(s);
