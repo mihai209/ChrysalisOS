@@ -378,9 +378,9 @@ void shell_create_window() {
     if (s) {
         surface_clear(s, 0xFFFFFFFF); /* White background */
         
-        /* Draw Title Bar (Windows 1.0 style: Black background, White text centered) */
+        /* Draw Title Bar  */
         fly_draw_rect_fill(s, 0, 0, win_w, 24, 0xFF000000);
-        const char* title = "Chrysalis OS MS-DOS Executive";
+        const char* title = "Chrysalis OS : Konsole";
         int title_len = strlen(title);
         int title_x = (win_w - (title_len * 8)) / 2;
         fly_draw_text(s, title_x, 4, title, 0xFFFFFFFF);
