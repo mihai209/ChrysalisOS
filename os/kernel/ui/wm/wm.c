@@ -62,13 +62,6 @@ window_t* wm_create_window(surface_t* surface, int x, int y) {
     
     rebuild_win_array();
 
-    /* Add surface to compositor */
-    if (surface) {
-        surface->x = x;
-        surface->y = y;
-        compositor_add_surface(surface);
-    }
-
     serial("[WM] Window created id=%u\n", win->id);
 
     wm_hooks_t* hooks = wm_get_hooks();
@@ -98,10 +91,6 @@ void wm_destroy_window(window_t* win) {
     }
 
     rebuild_win_array();
-
-    if (win->surface) {
-        compositor_remove_surface(win->surface);
-    }
 
     if (focused_window == win) {
         focused_window = windows_list; /* Focus first available or NULL */
@@ -145,6 +134,20 @@ void wm_set_layout(wm_layout_t* layout) {
     wm_dirty = true;
 }
 
+window_t* wm_find_window_at(int x, int y) {
+    /* Iterate from Newest (Top) to Oldest (Bottom) */
+    for (size_t i = 0; i < win_count; i++) {
+        window_t* w = win_array[i];
+        if (!w || !w->surface) continue;
+        
+        if (x >= w->x && x < w->x + (int)w->surface->width &&
+            y >= w->y && y < w->y + (int)w->surface->height) {
+            return w;
+        }
+    }
+    return NULL;
+}
+
 void wm_render(void) {
     if (!wm_dirty && !terminal_is_dirty()) return;
 
@@ -153,12 +156,17 @@ void wm_render(void) {
         current_layout->apply(win_array, win_count);
     }
 
-    /* 2. Sync window coordinates to surfaces */
-    for (size_t i = 0; i < win_count; i++) {
+    /* 2. Prepare Surface List for Compositor (Bottom to Top) */
+    surface_t* render_list[MAX_WINDOWS];
+    int render_count = 0;
+
+    /* Iterate backwards (Oldest/Bottom -> Newest/Top) for Painter's Algorithm */
+    for (int i = (int)win_count - 1; i >= 0; i--) {
         window_t* w = win_array[i];
         if (w->surface) {
             w->surface->x = w->x;
             w->surface->y = w->y;
+            render_list[render_count++] = w->surface;
         }
     }
 
@@ -170,7 +178,7 @@ void wm_render(void) {
 
     /* 4. Render */
     serial("[WM] Rendering\n");
-    compositor_render();
+    compositor_render_surfaces(render_list, render_count);
     
     wm_dirty = false;
     terminal_clear_dirty();

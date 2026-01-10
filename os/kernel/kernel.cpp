@@ -566,7 +566,6 @@ extern "C" void kernel_main(uint32_t magic, uint32_t addr) {
     /* Initialize Shell (Text Mode) */
     shell_init();
 
-    /* === NEW ARCHITECTURE INIT (Moved after Paging) === */
     input_init();
     block_init();
     chrysfs_init();

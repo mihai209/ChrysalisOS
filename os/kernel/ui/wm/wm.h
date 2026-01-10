@@ -17,6 +17,9 @@ window_t* wm_get_focused(void);
 void wm_render(void);
 void wm_set_layout(wm_layout_t* layout);
 
+/* Hit test: Find window at global coordinates */
+window_t* wm_find_window_at(int x, int y);
+
 void wm_mark_dirty(void);
 bool wm_is_dirty(void);
 

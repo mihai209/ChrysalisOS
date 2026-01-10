@@ -17,6 +17,9 @@ void terminal_init();
 /* Switch backend to Framebuffer Console */
 void terminal_set_backend_fb(bool active);
 
+/* Global rendering control (for GUI mode switch) */
+void terminal_set_rendering(bool enabled);
+
 /* Terminal Modes */
 typedef enum {
     TERMINAL_MODE_VGA = 0,

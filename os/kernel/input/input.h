@@ -8,13 +8,17 @@ extern "C" {
 
 typedef enum {
     INPUT_KEYBOARD,
-    INPUT_MOUSE
+    INPUT_MOUSE,
+    INPUT_MOUSE_MOVE,
+    INPUT_MOUSE_CLICK
 } input_type_t;
 
 typedef struct {
     input_type_t type;
     uint32_t keycode; // ASCII char for simplicity now
     bool pressed;
+    int32_t mouse_x;
+    int32_t mouse_y;
 } input_event_t;
 
 void input_init(void);

@@ -23,6 +23,7 @@ static int term_y = 0;
 static int term_w = 0;
 static int term_h = 0;
 static bool term_dirty = true;
+static bool term_rendering_enabled = true;
 
 /* Redirection State */
 static char* capture_buf = 0;
@@ -104,6 +105,10 @@ extern "C" void terminal_set_backend_fb(bool active) {
     serial("[TERM] Mode set to %s\n", active ? "FB" : "VGA");
 }
 
+extern "C" void terminal_set_rendering(bool enabled) {
+    term_rendering_enabled = enabled;
+}
+
 extern "C" bool terminal_is_dirty(void) {
     return term_dirty;
 }
@@ -138,6 +143,9 @@ extern "C" void terminal_clear() {
 }
 
 extern "C" void terminal_putchar(char c) {
+    /* Global rendering lock for GUI mode */
+    if (!term_rendering_enabled) return;
+
     /* Handle Output Redirection (Piping) */
     if (capture_buf) {
         if (capture_written && *capture_written < capture_max) {

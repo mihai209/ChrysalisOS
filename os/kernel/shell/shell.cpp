@@ -391,6 +391,8 @@ void shell_create_window() {
         terminal_set_rect(0, 24, win_w, 400);
         
         serial("[SHELL] Window created and terminal attached.\n");
+    } else {
+        serial("[SHELL] Error: Failed to create surface (OOM?)\n");
     }
 }
 

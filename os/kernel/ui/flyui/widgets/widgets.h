@@ -1,5 +1,5 @@
 #pragma once
-#include "../widget.h"
+#include "../flyui.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -7,6 +7,8 @@ extern "C" {
 
 fly_widget_t* fly_label_create(const char* text);
 fly_widget_t* fly_button_create(const char* text);
+
+/* Panel helper */
 fly_widget_t* fly_panel_create(int w, int h);
 
 #ifdef __cplusplus

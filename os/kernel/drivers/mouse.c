@@ -10,6 +10,7 @@
 #include "../interrupts/irq.h"
 #include "../video/gpu.h"
 #include "../video/fb_console.h"
+#include "../input/input.h"
 
 /* Import serial logging from kernel glue */
 extern void serial(const char *fmt, ...);
@@ -28,6 +29,8 @@ static int32_t prev_mouse_x = 0;
 static int32_t prev_mouse_y = 0;
 static bool    mouse_has_wheel = false;
 static bool    cursor_drawn = false;
+static uint8_t prev_buttons = 0;
+static volatile bool mouse_blocked = false;
 
 /* Cursor Bitmap (16x16)
  * 0 = Transparent
@@ -141,6 +144,9 @@ static void draw_cursor_sprite(gpu_device_t* dev, int mx, int my) {
 }
 
 static void update_cursor(void) {
+    /* If blocked by compositor, do not draw. Compositor will call end() later. */
+    if (mouse_blocked) return;
+
     gpu_device_t* gpu = gpu_get_primary();
     if (!gpu) return;
 
@@ -151,6 +157,27 @@ static void update_cursor(void) {
     prev_mouse_x = mouse_x;
     prev_mouse_y = mouse_y;
     cursor_drawn = true;
+}
+
+/* --- Compositor Sync API --- */
+
+void mouse_blit_start(void) {
+    asm volatile("cli");
+    mouse_blocked = true;
+    gpu_device_t* gpu = gpu_get_primary();
+    /* Erase cursor from VRAM so compositor can draw clean frame */
+    if (gpu && cursor_drawn) {
+        restore_cursor_background(gpu);
+    }
+    asm volatile("sti");
+}
+
+void mouse_blit_end(void) {
+    asm volatile("cli");
+    mouse_blocked = false;
+    /* Redraw cursor on top of new frame */
+    update_cursor();
+    asm volatile("sti");
 }
 
 /* --- Interrupt Handler --- */
@@ -199,8 +226,8 @@ void mouse_handler(registers_t* regs) {
     mouse_cycle = 0;
 
     /* Decode Packet */
-    int32_t dx = (int32_t)mouse_byte[1];
-    int32_t dy = (int32_t)mouse_byte[2];
+    int32_t dx = (uint8_t)mouse_byte[1];
+    int32_t dy = (uint8_t)mouse_byte[2];
 
     /* Handle signs (9-bit signed integers) */
     if (mouse_byte[0] & 0x10) dx |= 0xFFFFFF00;
@@ -231,6 +258,42 @@ void mouse_handler(registers_t* regs) {
     /* Update Cursor on Screen */
     update_cursor();
     
+    /* Push Input Events */
+    if (dx != 0 || dy != 0) {
+        input_event_t ev;
+        ev.type = INPUT_MOUSE_MOVE;
+        ev.mouse_x = mouse_x;
+        ev.mouse_y = mouse_y;
+        ev.pressed = false;
+        ev.keycode = 0;
+        input_push(ev);
+    }
+
+    uint8_t buttons = mouse_byte[0] & 0x07;
+
+    /* Left Button */
+    if ((buttons & 1) != (prev_buttons & 1)) {
+        input_event_t ev;
+        ev.type = INPUT_MOUSE_CLICK;
+        ev.mouse_x = mouse_x;
+        ev.mouse_y = mouse_y;
+        ev.pressed = (buttons & 1) ? true : false;
+        ev.keycode = 1; /* 1 = Left */
+        input_push(ev);
+    }
+    /* Right Button */
+    if ((buttons & 2) != (prev_buttons & 2)) {
+        input_event_t ev;
+        ev.type = INPUT_MOUSE_CLICK;
+        ev.mouse_x = mouse_x;
+        ev.mouse_y = mouse_y;
+        ev.pressed = (buttons & 2) ? true : false;
+        ev.keycode = 2; /* 2 = Right */
+        input_push(ev);
+    }
+
+    prev_buttons = buttons;
+
     loops++;
     }
 }

@@ -3,57 +3,16 @@
 #include "../mem/kmalloc.h"
 #include "../string.h"
 #include "gpu.h"
+#include "../drivers/mouse.h"
 
 /* Import serial logging */
 extern void serial(const char *fmt, ...);
 
-/* Simple static array for surfaces */
-#define MAX_SURFACES 32
-static surface_t* surfaces[MAX_SURFACES];
-static int surface_count = 0;
-
 void compositor_init(void) {
-    for (int i = 0; i < MAX_SURFACES; i++) {
-        surfaces[i] = 0;
-    }
-    surface_count = 0;
     serial("[COMPOSITOR] Initialized.\n");
 }
 
-void compositor_add_surface(surface_t* surface) {
-    if (!surface) return;
-    
-    /* Check if already added */
-    for (int i = 0; i < MAX_SURFACES; i++) {
-        if (surfaces[i] == surface) return;
-    }
-
-    /* Find empty slot */
-    for (int i = 0; i < MAX_SURFACES; i++) {
-        if (surfaces[i] == 0) {
-            surfaces[i] = surface;
-            surface_count++;
-            serial("[COMPOSITOR] Added surface 0x%x at index %d\n", surface, i);
-            return;
-        }
-    }
-    serial("[COMPOSITOR] Error: Max surfaces reached.\n");
-}
-
-void compositor_remove_surface(surface_t* surface) {
-    if (!surface) return;
-    
-    for (int i = 0; i < MAX_SURFACES; i++) {
-        if (surfaces[i] == surface) {
-            surfaces[i] = 0;
-            surface_count--;
-            serial("[COMPOSITOR] Removed surface 0x%x from index %d\n", surface, i);
-            return;
-        }
-    }
-}
-
-void compositor_render(void) {
+void compositor_render_surfaces(surface_t** surfaces, int count) {
     uint32_t fb_w = 0, fb_h = 0, fb_pitch = 0;
     fb_get_info(&fb_w, &fb_h, &fb_pitch, 0, 0);
 
@@ -71,12 +30,15 @@ void compositor_render(void) {
     gpu_device_t* gpu = gpu_get_primary();
     uint8_t* fb_base = (gpu && gpu->virt_addr) ? (uint8_t*)gpu->virt_addr : 0;
 
+    /* Lock mouse cursor to prevent flickering/corruption */
+    mouse_blit_start();
+
     for (uint32_t y = 0; y < fb_h; y++) {
         /* 1. Clear scanline to background */
         for (uint32_t x = 0; x < fb_w; x++) scanline[x] = bg_color;
 
         /* 2. Compose surfaces on this line */
-        for (int i = 0; i < MAX_SURFACES; i++) {
+        for (int i = 0; i < count; i++) {
             surface_t* s = surfaces[i];
             if (!s || !s->visible) continue;
 
@@ -121,4 +83,7 @@ void compositor_render(void) {
     }
     
     kfree(scanline);
+
+    /* Unlock and redraw cursor on top of new frame */
+    mouse_blit_end();
 }

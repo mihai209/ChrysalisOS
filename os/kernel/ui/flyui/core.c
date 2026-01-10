@@ -1,11 +1,9 @@
 #include "flyui.h"
 #include "../../mem/kmalloc.h"
-#include "draw.h"
-#include "theme.h"
 #include <stddef.h>
 
 extern void serial(const char *fmt, ...);
-extern void flyui_surface_clear(surface_t* surf, uint32_t color);
+/* extern void flyui_surface_clear(surface_t* surf, uint32_t color); */
 
 flyui_context_t* flyui_init(surface_t* surface) {
     flyui_context_t* ctx = (flyui_context_t*)kmalloc(sizeof(flyui_context_t));
@@ -47,9 +45,6 @@ static void render_widget_recursive(fly_widget_t* w, surface_t* surf, int x_off,
 void flyui_render(flyui_context_t* ctx) {
     if (!ctx || !ctx->surface) return;
     
-    /* Clear background only if root exists and we want to enforce it */
-    /* flyui_surface_clear(ctx->surface, FLY_COLOR_BG); */
-    
     if (ctx->root) {
         render_widget_recursive(ctx->root, ctx->surface, 0, 0);
     }
@@ -58,7 +53,7 @@ void flyui_render(flyui_context_t* ctx) {
 /* Hit test recursive */
 static fly_widget_t* hit_test(fly_widget_t* w, int mx, int my, int x_off, int y_off) {
     if (!w) return NULL;
-    
+
     int abs_x = x_off + w->x;
     int abs_y = y_off + w->y;
     
@@ -66,16 +61,13 @@ static fly_widget_t* hit_test(fly_widget_t* w, int mx, int my, int x_off, int y_
     if (mx >= abs_x && mx < abs_x + w->w &&
         my >= abs_y && my < abs_y + w->h) {
         
-        /* Check children first (to find deepest) */
-        /* We need to iterate to find the one "on top". 
-           If we draw list order, last drawn is top. 
-           So we should check list in reverse or check all and keep last match. */
-        
+        /* Check children first (top-most in Z-order) */
         fly_widget_t* hit = NULL;
         fly_widget_t* c = w->first_child;
         while (c) {
             fly_widget_t* res = hit_test(c, mx, my, abs_x, abs_y);
-            if (res) hit = res; /* Keep updating to find last drawn */
+            /* Later children are drawn on top, so they take precedence */
+            if (res) hit = res; 
             c = c->next_sibling;
         }
         
@@ -89,10 +81,10 @@ static fly_widget_t* hit_test(fly_widget_t* w, int mx, int my, int x_off, int y_
 void flyui_dispatch_event(flyui_context_t* ctx, fly_event_t* event) {
     if (!ctx || !ctx->root) return;
     
-    if (event->type == FLY_EVENT_MOUSE_DOWN) {
-        fly_widget_t* target = hit_test(ctx->root, event->mx, event->my, 0, 0);
-        if (target && target->on_event) {
-            target->on_event(target, event);
-        }
+    /* Simple dispatch: hit test for mouse events */
+    /* For now, we just dispatch to the target found by hit test */
+    fly_widget_t* target = hit_test(ctx->root, event->mx, event->my, 0, 0);
+    if (target && target->on_event) {
+        target->on_event(target, event);
     }
 }
