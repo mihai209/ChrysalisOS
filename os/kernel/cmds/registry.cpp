@@ -41,6 +41,7 @@
 #include "mkdir.h"
 #include "cd.h"
 #include "win.h"
+#include "net.h"
 // Minimal freestanding helpers (no libc)
 
 /*
@@ -143,6 +144,7 @@ static int wrap_cmd_mkdir(int argc, char **argv)     { return wrap_new_int(cmd_m
 static int wrap_cmd_cd(int argc, char **argv)        { return wrap_new_int(cmd_cd, argc, argv); }         /* int cmd_cd(int,char**) */
 static int wrap_cmd_launch(int argc, char **argv)    { return wrap_new_int(cmd_launch, argc, argv); }     /* int cmd_launch(int,char**) */
 static int wrap_cmd_launch_exit(int argc, char **argv) { return wrap_new_int(cmd_launch_exit, argc, argv); } /* int cmd_launch_exit(int,char**) */
+static int wrap_cmd_net(int argc, char **argv)       { return wrap_new_int(cmd_net, argc, argv); }        /* int cmd_net(int,char**) */
 /* Wrapper for execve */
 static int wrap_cmd_exec(int argc, char **argv) {
     if (argc < 2) return -1;
@@ -179,6 +181,7 @@ Command command_table[] = {
     { "mkdir",     wrap_cmd_mkdir },
     { "login",     wrap_cmd_login },
     { "mem",       wrap_cmd_mem },
+    { "net",       wrap_cmd_net },
     { "pmm",       wrap_cmd_pmm },
     { "play",      wrap_cmd_play },
    // { "reboot",    wrap_cmd_reboot },

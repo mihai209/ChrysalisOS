@@ -128,6 +128,7 @@ OBJS = \
 	$(BUILD)/cmds/mkdir.o \
 	$(BUILD)/cmds/cd.o \
 	$(BUILD)/cmds/win.o \
+	$(BUILD)/cmds/net.o \
 	$(BUILD)/hardware/pci.o \
 	$(BUILD)/hardware/acpi.o \
 	$(BUILD)/arch/interrupts.o \
@@ -274,6 +275,16 @@ OBJS = \
 	$(BUILD)/games/doom/doomgeneric/w_wad.o \
 	$(BUILD)/games/doom/doomgeneric/wi_stuff.o \
 	$(BUILD)/games/doom/doomgeneric/z_zone.o \
+	$(BUILD)/ethernet/net.o \
+	$(BUILD)/ethernet/net_device.o \
+	$(BUILD)/ethernet/eth.o \
+	$(BUILD)/ethernet/arp.o \
+	$(BUILD)/ethernet/ipv4.o \
+	$(BUILD)/ethernet/udp.o \
+	$(BUILD)/ethernet/dns.o \
+	$(BUILD)/ethernet/dhcp.o \
+	$(BUILD)/ethernet/drivers/e1000.o \
+	$(BUILD)/ethernet/drivers/rtl8139.o
 
 
 
@@ -305,6 +316,9 @@ dirs: $(BUILD)
 	mkdir -p $(BUILD)/apps
 	mkdir -p $(BUILD)/games/doom/doomgeneric
 	mkdir -p $(BUILD)/games/doom/doomgeneric/doom
+	mkdir -p ${BUILD}/ethernet
+	mkdir -p ${BUILD}/ethernet/drivers
+
 
 
 
@@ -646,6 +660,9 @@ $(BUILD)/cmds/cd.o: kernel/cmds/cd.cpp | dirs
 $(BUILD)/cmds/win.o: kernel/cmds/win.cpp | dirs
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
+$(BUILD)/cmds/net.o: kernel/cmds/net.cpp | dirs
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
 $(BUILD)/hardware/pci.o: kernel/hardware/pci.cpp
 	@mkdir -p $(BUILD)/hardware
 	$(CXX) $(CXXFLAGS) -c $< -o $@
@@ -910,6 +927,10 @@ $(BUILD)/games/doom/doom_iwad.o: \
 
 
 $(BUILD)/posix_stubs.o: kernel/posix_stubs.c | dirs
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(BUILD)/ethernet/%.o: kernel/ethernet/%.c | dirs
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c $< -o $@
 

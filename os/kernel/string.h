@@ -29,6 +29,7 @@ int memcmp(const void* s1, const void* s2, size_t n);
 /* Small convenience conversions */
 char* itoa_dec(char* out, int32_t v); /* decimal, returns out */
 char* utoa_hex(char* out, uint32_t v); /* hex (lowercase), returns out */
+int atoi(const char* str);
 
 #ifdef __cplusplus
 }

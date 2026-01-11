@@ -369,6 +369,13 @@ static void create_taskbar() {
     fly_widget_add(root, btn_files);
     x += bw + gap;
 
+    /* Image Viewer Button */
+    fly_widget_t* btn_img = fly_button_create("Img");
+    btn_img->x = x; btn_img->y = y; btn_img->w = 40; btn_img->h = bh;
+    btn_img->on_event = img_btn_event;
+    fly_widget_add(root, btn_img);
+    x += 40 + gap;
+
     /* Notepad Button */
     fly_widget_t* btn_note = fly_button_create("Edit");
     btn_note->x = x; btn_note->y = y; btn_note->w = 50; btn_note->h = bh;

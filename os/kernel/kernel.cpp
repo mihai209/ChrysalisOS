@@ -28,6 +28,7 @@
 #include "arch/i386/gdt.h"
 #include "arch/i386/idt.h"
 #include "arch/i386/tss.h"
+#include "arch/i386/io.h"
 #include "drivers/keyboard.h"
 #include "drivers/pit.h"
 #include "shell/shell.h"
@@ -86,6 +87,7 @@
 #include "ui/wm/window.h"
 #include "ui/flyui/flyui.h"
 #include "ui/flyui/widgets/widgets.h"
+#include "ethernet/net.h"
 
 
 
@@ -371,6 +373,9 @@ extern "C" void kernel_main(uint32_t magic, uint32_t addr) {
 
 // 11) Timer abstraction (PIT) - install handlers (overwrites IRQ0)
     timer_init(100);
+    
+    /* Force unmask IRQ0 (Timer) in PIC Master to ensure timer_get_ticks() works */
+    outb(0x21, inb(0x21) & 0xFE);
 
 
 
@@ -715,6 +720,9 @@ pci_init();
     usb_core_init();
     terminal_writestring("[kernel] USB init done.\n");
 
+    /* Initialize Ethernet Subsystem */
+    net_init();
+
 // definește string-ul (scope file-local e OK)
 //static const char test_msg[] = "Hello from syscall!";
 
@@ -741,6 +749,7 @@ pci_init();
     while (1) {
         usb_poll();           // Poll USB HID devices
         io_sched_poll();      // Process Async I/O requests
+        net_poll();           // Poll Network Stack
         ps2_controller_watchdog(); // Scan for PS/2 freezes
         
         /* NEW: Unified Input Loop */

@@ -332,6 +332,21 @@ extern "C" void terminal_vprintf(const char* fmt, void* va_ptr)
         fmt++;
         if (*fmt == 0) break;
 
+        /* Parse flags and width */
+        int pad_zero = 0;
+        int width = 0;
+        
+        while (*fmt == '0') {
+            pad_zero = 1;
+            fmt++;
+        }
+        
+        while (*fmt >= '0' && *fmt <= '9') {
+            width = width * 10 + (*fmt - '0');
+            fmt++;
+        }
+        
+        /* Parse type */
         switch (*fmt) {
             case 'c': {
                 char c = (char)va_arg(args, int);
@@ -347,7 +362,10 @@ extern "C" void terminal_vprintf(const char* fmt, void* va_ptr)
 
             case 'd': {
                 int v = va_arg(args, int);
-                print_int32((int32_t)v);
+                /* Simple padding support for decimal not fully implemented here to save space, 
+                   but we consume the modifiers so they don't print garbage. */
+                if (v < 0) { terminal_putchar('-'); v = -v; }
+                print_uint32((uint32_t)v);
                 break;
             }
 
@@ -360,7 +378,30 @@ extern "C" void terminal_vprintf(const char* fmt, void* va_ptr)
             case 'x':
             case 'X': {
                 unsigned int v = va_arg(args, unsigned int);
-                print_hex32((uint32_t)v);
+                
+                /* Manual hex formatting with padding */
+                char buf[16];
+                int i = 0;
+                const char* digits = (*fmt == 'X') ? "0123456789ABCDEF" : "0123456789abcdef";
+                
+                if (v == 0) {
+                    buf[i++] = '0';
+                } else {
+                    while (v) {
+                        buf[i++] = digits[v & 0xF];
+                        v >>= 4;
+                    }
+                }
+                
+                /* Pad */
+                while (i < width) {
+                    buf[i++] = pad_zero ? '0' : ' ';
+                }
+                
+                /* Print reversed */
+                while (i > 0) {
+                    terminal_putchar(buf[--i]);
+                }
                 break;
             }
 

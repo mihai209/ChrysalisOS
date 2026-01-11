@@ -172,7 +172,7 @@ This level separates hobby kernels from serious systems.
 | ------ | ---------------------- |
 | ☑️     | libc (minimal / freestanding)|
 | ✅     | POSIX-like API         |
-| 🔲     | Internet Support       |
+| ✅     | Internet Support (Ethernet + DHCP)       |
 | 🔲     | Package Manager        |
 | 🔲     | Ports System           |
 | 🔲     | Native Build Toolchain |
