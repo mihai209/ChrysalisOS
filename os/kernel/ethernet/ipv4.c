@@ -1,6 +1,7 @@
 #include "ipv4.h"
 #include "arp.h"
 #include "udp.h"
+#include "tcp.h"
 #include "../mm/kmalloc.h"
 #include "../string.h"
 
@@ -45,6 +46,8 @@ void ipv4_handle_packet(net_device_t* dev, const void* data, size_t len) {
 
     if (hdr->proto == IP_PROTO_UDP) {
         udp_handle_packet(dev, src, payload, payload_len);
+    } else if (hdr->proto == IP_PROTO_TCP) {
+        tcp_handle_packet(dev, src, payload, payload_len);
     } else if (hdr->proto == IP_PROTO_ICMP) {
         if (icmp_cb) {
             icmp_cb(src, (const uint8_t*)payload, payload_len);

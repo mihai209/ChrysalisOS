@@ -6,6 +6,7 @@ extern "C" {
 #endif
 
 #define IP_PROTO_ICMP 1
+#define IP_PROTO_TCP  6
 #define IP_PROTO_UDP 17
 
 typedef struct {

@@ -42,6 +42,8 @@
 #include "cd.h"
 #include "win.h"
 #include "net.h"
+#include "get.h"
+#include "curl.h"
 // Minimal freestanding helpers (no libc)
 
 /*
@@ -145,6 +147,8 @@ static int wrap_cmd_cd(int argc, char **argv)        { return wrap_new_int(cmd_c
 static int wrap_cmd_launch(int argc, char **argv)    { return wrap_new_int(cmd_launch, argc, argv); }     /* int cmd_launch(int,char**) */
 static int wrap_cmd_launch_exit(int argc, char **argv) { return wrap_new_int(cmd_launch_exit, argc, argv); } /* int cmd_launch_exit(int,char**) */
 static int wrap_cmd_net(int argc, char **argv)       { return wrap_new_int(cmd_net, argc, argv); }        /* int cmd_net(int,char**) */
+static int wrap_cmd_get(int argc, char **argv)       { return wrap_new_int(cmd_get, argc, argv); }        /* int cmd_get(int,char**) */
+static int wrap_cmd_curl(int argc, char **argv)      { return wrap_new_int(cmd_curl, argc, argv); }       /* int cmd_curl(int,char**) */
 /* Wrapper for execve */
 static int wrap_cmd_exec(int argc, char **argv) {
     if (argc < 2) return -1;
@@ -163,6 +167,7 @@ Command command_table[] = {
     { "cat",       wrap_cmd_cat },
     { "color",     wrap_cmd_color },
     { "clear",     wrap_cmd_clear },
+    { "curl",      wrap_cmd_curl },
     { "credits",   wrap_cmd_credits },
     { "date",      wrap_cmd_date },
     { "disk",      wrap_cmd_disk },
@@ -175,6 +180,7 @@ Command command_table[] = {
     { "fat",       wrap_cmd_fat },
     { "fortune",   wrap_cmd_fortune },
     { "help",      wrap_cmd_help },
+    { "get",       wrap_cmd_get },
     { "ls",        wrap_cmd_ls },
     { "launch",    wrap_cmd_launch },
     { "launch-exit", wrap_cmd_launch_exit },

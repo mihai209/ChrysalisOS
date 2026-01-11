@@ -129,6 +129,8 @@ OBJS = \
 	$(BUILD)/cmds/cd.o \
 	$(BUILD)/cmds/win.o \
 	$(BUILD)/cmds/net.o \
+	$(BUILD)/cmds/get.o \
+	$(BUILD)/cmds/curl.o \
 	$(BUILD)/hardware/pci.o \
 	$(BUILD)/hardware/acpi.o \
 	$(BUILD)/arch/interrupts.o \
@@ -281,9 +283,14 @@ OBJS = \
 	$(BUILD)/ethernet/arp.o \
 	$(BUILD)/ethernet/ipv4.o \
 	$(BUILD)/ethernet/udp.o \
+	$(BUILD)/ethernet/tcp.o \
+	$(BUILD)/ethernet/tls.o \
 	$(BUILD)/ethernet/dns.o \
 	$(BUILD)/ethernet/dhcp.o \
 	$(BUILD)/ethernet/drivers/e1000.o \
+	$(BUILD)/crypto/sha256.o \
+	$(BUILD)/crypto/aes.o \
+	$(BUILD)/crypto/prng.o \
 	$(BUILD)/ethernet/drivers/rtl8139.o
 
 
@@ -318,6 +325,7 @@ dirs: $(BUILD)
 	mkdir -p $(BUILD)/games/doom/doomgeneric/doom
 	mkdir -p ${BUILD}/ethernet
 	mkdir -p ${BUILD}/ethernet/drivers
+	mkdir -p ${BUILD}/crypto
 
 
 
@@ -663,6 +671,12 @@ $(BUILD)/cmds/win.o: kernel/cmds/win.cpp | dirs
 $(BUILD)/cmds/net.o: kernel/cmds/net.cpp | dirs
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
+$(BUILD)/cmds/get.o: kernel/cmds/get.cpp | dirs
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+$(BUILD)/cmds/curl.o: kernel/cmds/curl.cpp | dirs
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
 $(BUILD)/hardware/pci.o: kernel/hardware/pci.cpp
 	@mkdir -p $(BUILD)/hardware
 	$(CXX) $(CXXFLAGS) -c $< -o $@
@@ -931,6 +945,10 @@ $(BUILD)/posix_stubs.o: kernel/posix_stubs.c | dirs
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(BUILD)/ethernet/%.o: kernel/ethernet/%.c | dirs
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(BUILD)/crypto/%.o: kernel/crypto/%.c | dirs
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c $< -o $@
 
