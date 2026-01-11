@@ -188,6 +188,7 @@ OBJS = \
 	$(BUILD)/apps/paint_app.o \
 	$(BUILD)/apps/demo3d_app.o \
 	$(BUILD)/apps/app_manager.o \
+	$(BUILD)/apps/minesweeper_app.o \
 	$(BUILD)/apps/doom_app.o \
 	$(BUILD)/games/doom/doomgeneric/doomgeneric.o \
 	$(BUILD)/games/doom/doomgeneric/doomgeneric_chrysalis.o \
@@ -886,6 +887,10 @@ $(BUILD)/apps/app_manager.o: kernel/apps/app_manager.cpp | dirs
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 $(BUILD)/apps/doom_app.o: kernel/apps/doom_app.cpp | dirs
+	@mkdir -p $(dir $@)
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+$(BUILD)/apps/minesweeper_app.o: kernel/apps/minesweeper_app.cpp | dirs
 	@mkdir -p $(dir $@)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 

@@ -17,6 +17,7 @@
 #include "../apps/app_manager.h"
 #include "../apps/demo3d_app.h"
 #include "../apps/doom_app.h"
+#include "../apps/minesweeper_app.h"
 
 extern "C" void serial(const char *fmt, ...);
 
@@ -150,6 +151,16 @@ static bool demo_btn_event(fly_widget_t* w, fly_event_t* e) {
     (void)w;
     if (e->type == FLY_EVENT_MOUSE_UP) {
         demo3d_app_create();
+        return true;
+    }
+    return false;
+}
+
+/* Button Handler: Lansează Minesweeper */
+static bool mine_btn_event(fly_widget_t* w, fly_event_t* e) {
+    (void)w;
+    if (e->type == FLY_EVENT_MOUSE_UP) {
+        minesweeper_app_create();
         return true;
     }
     return false;
@@ -414,6 +425,13 @@ static void create_taskbar() {
     fly_widget_add(root, btn_3d);
     x += 30 + gap;
 
+    /* Minesweeper Button */
+    fly_widget_t* btn_mine = fly_button_create("Mine");
+    btn_mine->x = x; btn_mine->y = y; btn_mine->w = 40; btn_mine->h = bh;
+    btn_mine->on_event = mine_btn_event;
+    fly_widget_add(root, btn_mine);
+    x += 40 + gap;
+
     /* Doom Button */
     fly_widget_t* btn_doom = fly_button_create("Doom");
     btn_doom->x = x; btn_doom->y = y; btn_doom->w = 50; btn_doom->h = bh;
@@ -615,6 +633,11 @@ extern "C" int cmd_launch(int argc, char** argv) {
                 /* 3.13 Dispatch to Doom */
                 if (target == doom_app_get_window()) {
                     doom_app_handle_event(&ev);
+                }
+
+                /* 3.14 Dispatch to Minesweeper */
+                if (target == minesweeper_app_get_window()) {
+                    minesweeper_app_handle_event(&ev);
                 }
 
                 /* 3.6 Dispatch to Popup */
