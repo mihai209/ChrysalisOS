@@ -212,12 +212,4 @@ but expectations should align with its experimental nature.
 **Current Version:** 0.0.1
 **Last Updated:** December 31, 2025
 
-## Star History
 
-<a href="https://www.star-history.com/#mihai209/ChrysalisOS&type=date&legend=top-left">
- <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=mihai209/ChrysalisOS&type=date&theme=dark&legend=top-left" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=mihai209/ChrysalisOS&type=date&legend=top-left" />
-   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=mihai209/ChrysalisOS&type=date&legend=top-left" />
- </picture>
-</a>
