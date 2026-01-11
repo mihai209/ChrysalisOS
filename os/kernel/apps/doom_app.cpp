@@ -68,7 +68,7 @@ bool doom_app_handle_event(input_event_t* ev) {
     if (ev->type == INPUT_MOUSE_CLICK && ev->pressed) {
         int lx = ev->mouse_x - win->x;
         int ly = ev->mouse_y - win->y;
-        
+
         /* Close Button Area: Top Right, inside Title Bar (24px height) */
         if (lx >= win->w - 20 && ly < 24) {
             serial("[DOOM] Window close requested\n");

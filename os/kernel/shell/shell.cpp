@@ -379,7 +379,7 @@ void shell_create_window() {
         surface_clear(s, 0xFFFFFFFF); /* White background */
         
         /* Draw Title Bar  */
-        fly_draw_rect_fill(s, 0, 0, win_w, 24, 0xFF000000);
+        fly_draw_rect_fill(s, 0, 0, win_w, 24, 0xFF000080); /* Classic Blue */
         const char* title = "Chrysalis OS : Konsole";
         int title_len = strlen(title);
         int title_x = (win_w - (title_len * 8)) / 2;
@@ -388,21 +388,9 @@ void shell_create_window() {
         /* Close Button [X] */
         int bx = win_w - 20;
         int by = 4;
-        fly_draw_rect_fill(s, bx, by, 16, 16, 0xFFC0C0C0);
+        fly_draw_rect_fill(s, bx, by, 16, 16, 0xFFC0C0C0); /* Classic Gray */
         fly_draw_rect_outline(s, bx, by, 16, 16, 0xFFFFFFFF);
-        fly_draw_text(s, bx + 4, by, "X", 0xFF000000);
-        
-        /* Maximize Button [O] */
-        bx -= 20;
-        fly_draw_rect_fill(s, bx, by, 16, 16, 0xFFC0C0C0);
-        fly_draw_rect_outline(s, bx, by, 16, 16, 0xFFFFFFFF);
-        fly_draw_rect_outline(s, bx + 3, by + 3, 10, 10, 0xFF000000); /* Box icon */
-
-        /* Minimize Button [_] */
-        bx -= 20;
-        fly_draw_rect_fill(s, bx, by, 16, 16, 0xFFC0C0C0);
-        fly_draw_rect_outline(s, bx, by, 16, 16, 0xFFFFFFFF);
-        fly_draw_rect_fill(s, bx + 3, by + 10, 10, 3, 0xFF000000); /* Line icon */
+        fly_draw_text(s, bx + 4, by, "X", 0xFFFFFFFF);
 
         shell_win = wm_create_window(s, 50, 50);
         

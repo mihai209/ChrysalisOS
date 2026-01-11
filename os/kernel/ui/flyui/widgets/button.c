@@ -18,10 +18,10 @@ static void button_draw(fly_widget_t* w, surface_t* surf, int x, int y) {
     
     if (d && d->pressed) { bg = 0xFF000000; fg = 0xFFFFFFFF; } /* Invert on press */
 
-    /* Windows 1.0 Style: White background, Black border */
+    /* Classic Style: Gray background */
     fly_draw_rect_fill(surf, x, y, w->w, w->h, bg);
-    fly_draw_rect_outline(surf, x, y, w->w, w->h, FLY_COLOR_BORDER);
-    /* Double border for "3D" effect (flat in Win1.0 but distinct) */
+    fly_draw_rect_outline(surf, x, y, w->w, w->h, 0xFF000000);
+    /* Double border for "3D" effect */
     fly_draw_rect_outline(surf, x + 2, y + 2, w->w - 4, w->h - 4, FLY_COLOR_BORDER);
     
     /* Draw text centered */
@@ -59,7 +59,7 @@ fly_widget_t* fly_button_create(const char* text) {
     }
     w->on_draw = button_draw;
     w->on_event = button_event;
-    w->bg_color = FLY_COLOR_BUTTON;
-    w->fg_color = FLY_COLOR_TEXT;
+    w->bg_color = 0xFFC0C0C0; /* Classic Gray */
+    w->fg_color = 0xFF000000;
     return w;
 }

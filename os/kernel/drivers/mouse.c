@@ -250,8 +250,14 @@ void mouse_handler(registers_t* regs) {
     if (mouse_has_wheel) {
         int8_t dz = (int8_t)mouse_byte[3];
         if (dz != 0) {
-            /* Map wheel to console scroll */
-            fb_cons_scroll(-dz);
+            /* Map wheel to Button 4 (Up) and 5 (Down) events */
+            input_event_t ev;
+            ev.type = INPUT_MOUSE_CLICK;
+            ev.mouse_x = mouse_x;
+            ev.mouse_y = mouse_y;
+            ev.pressed = true; /* Momentary press */
+            ev.keycode = (dz > 0) ? 4 : 5; /* 4=Up, 5=Down */
+            input_push(ev);
         }
     }
 

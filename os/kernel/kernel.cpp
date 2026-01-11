@@ -761,6 +761,11 @@ pci_init();
                 serial("[KERNEL] Input: %c (0x%x)\n", (char)ev.keycode, ev.keycode);
                 shell_handle_char((char)ev.keycode);
             }
+            else if (ev.type == INPUT_MOUSE_CLICK && ev.pressed) {
+                /* Handle Scroll in Text Mode */
+                if (ev.keycode == 4) fb_cons_scroll(-3); /* Scroll Up */
+                else if (ev.keycode == 5) fb_cons_scroll(3);  /* Scroll Down */
+            }
         }
         
         asm volatile("hlt"); // reduce power until next interrupt

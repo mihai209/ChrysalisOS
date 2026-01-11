@@ -18,6 +18,15 @@
 #include "../apps/demo3d_app.h"
 #include "../apps/doom_app.h"
 #include "../apps/minesweeper_app.h"
+#include "../ethernet/net.h"
+#include "../ethernet/net_device.h"
+#include "../include/stdio.h"
+#include "../mem/kmalloc.h"
+
+/* Classic Theme Colors */
+#define THEME_GRAY   0xFFC0C0C0
+#define THEME_WHITE  0xFFFFFFFF
+#define THEME_BLACK  0xFF000000
 
 extern "C" void serial(const char *fmt, ...);
 
@@ -26,14 +35,144 @@ static window_t* taskbar_win = NULL;
 static flyui_context_t* taskbar_ctx = NULL;
 static window_t* popup_win = NULL;
 static flyui_context_t* popup_ctx = NULL;
+static window_t* net_win = NULL;
+static flyui_context_t* net_ctx = NULL;
+static window_t* start_menu_win = NULL;
+static flyui_context_t* start_menu_ctx = NULL;
 static bool is_gui_running = false;
 static int taskbar_last_min = -1;
+
+/* Icon Button Logic */
+typedef struct {
+    int icon_type;
+    bool pressed;
+    bool (*event_cb)(fly_widget_t* w, fly_event_t* e);
+} icon_btn_data_t;
+
+enum {
+    ICON_START = 0,
+    ICON_TERM,
+    ICON_FILES,
+    ICON_IMG,
+    ICON_NOTE,
+    ICON_PAINT,
+    ICON_CALC,
+    ICON_CLOCK,
+    ICON_CAL,
+    ICON_TASK,
+    ICON_INFO,
+    ICON_3D,
+    ICON_MINE,
+    ICON_DOOM,
+    ICON_NET,
+    ICON_RUN
+};
+
+static void draw_icon_graphic(surface_t* s, int x, int y, int type) {
+    /* Simple pixel art icons */
+    switch (type) {
+        case ICON_START: /* Simple Diamond */
+            fly_draw_rect_fill(s, x+6, y, 4, 16, 0xFF000000);
+            fly_draw_rect_fill(s, x, y+6, 16, 4, 0xFF000000);
+            break;
+        case ICON_TERM: /* Terminal >_ */
+            fly_draw_rect_fill(s, x, y, 16, 14, 0xFF000000);
+            fly_draw_text(s, x+2, y+2, ">", 0xFF00FF00);
+            break;
+        case ICON_FILES: /* Folder */
+            fly_draw_rect_fill(s, x, y+2, 16, 12, 0xFFFFCC00);
+            fly_draw_rect_fill(s, x, y, 6, 2, 0xFFFFCC00);
+            break;
+        case ICON_IMG: /* Image */
+            fly_draw_rect_fill(s, x, y, 14, 14, 0xFFFFFFFF);
+            fly_draw_rect_outline(s, x, y, 14, 14, 0xFF000000);
+            fly_draw_rect_fill(s, x+4, y+4, 6, 6, 0xFFFF0000);
+            break;
+        case ICON_NOTE: /* Notepad */
+            fly_draw_rect_fill(s, x+2, y, 12, 16, 0xFFFFFFFF);
+            fly_draw_rect_fill(s, x+4, y+4, 8, 2, 0xFF000000);
+            fly_draw_rect_fill(s, x+4, y+8, 8, 2, 0xFF000000);
+            break;
+        case ICON_PAINT: /* Brush */
+            fly_draw_rect_fill(s, x+4, y, 4, 10, 0xFFA0522D);
+            fly_draw_rect_fill(s, x+2, y+10, 8, 4, 0xFFFF0000);
+            break;
+        case ICON_CALC: /* Calc */
+            fly_draw_rect_fill(s, x, y, 12, 16, 0xFFC0C0C0);
+            fly_draw_rect_fill(s, x+2, y+2, 8, 4, 0xFFFFFFFF);
+            break;
+        case ICON_CLOCK: /* Clock */
+            fly_draw_rect_outline(s, x, y, 14, 14, 0xFF000000);
+            fly_draw_rect_fill(s, x+7, y+2, 1, 6, 0xFF000000);
+            fly_draw_rect_fill(s, x+7, y+7, 4, 1, 0xFF000000);
+            break;
+        case ICON_CAL: /* Calendar */
+            fly_draw_rect_fill(s, x, y, 16, 16, 0xFFFFFFFF);
+            fly_draw_rect_fill(s, x, y, 16, 4, 0xFFFF0000);
+            fly_draw_text(s, x+2, y+4, "7", 0xFF000000);
+            break;
+        case ICON_TASK: /* List */
+            fly_draw_rect_fill(s, x, y, 14, 16, 0xFFFFFFFF);
+            fly_draw_rect_fill(s, x+2, y+2, 10, 2, 0xFF000000);
+            fly_draw_rect_fill(s, x+2, y+6, 10, 2, 0xFF000000);
+            break;
+        case ICON_INFO: /* Info */
+            fly_draw_rect_fill(s, x, y, 14, 14, 0xFF0000FF);
+            fly_draw_text(s, x+4, y, "i", 0xFFFFFFFF);
+            break;
+        case ICON_3D: /* Cube */
+            fly_draw_rect_outline(s, x, y, 12, 12, 0xFF000000);
+            fly_draw_rect_outline(s, x+4, y+4, 12, 12, 0xFF000000);
+            break;
+        case ICON_MINE: /* Mine */
+            fly_draw_rect_fill(s, x+4, y+4, 8, 8, 0xFF000000);
+            fly_draw_rect_fill(s, x+7, y, 2, 4, 0xFF000000);
+            break;
+        case ICON_DOOM: /* Face */
+            fly_draw_rect_fill(s, x, y, 14, 16, 0xFF8B4513);
+            fly_draw_rect_fill(s, x+2, y+4, 4, 4, 0xFFFFFFFF);
+            fly_draw_rect_fill(s, x+8, y+4, 4, 4, 0xFFFFFFFF);
+            break;
+        case ICON_NET: /* Net */
+            fly_draw_rect_fill(s, x, y+4, 16, 8, 0xFF0000FF);
+            fly_draw_rect_fill(s, x+6, y, 4, 16, 0xFF0000FF);
+            break;
+        case ICON_RUN: /* Run */
+            fly_draw_rect_fill(s, x, y, 16, 16, 0xFFFFFFFF);
+            fly_draw_text(s, x+4, y+2, "R", 0xFF000000);
+            break;
+    }
+}
+
+static void taskbar_btn_draw(fly_widget_t* w, surface_t* s, int x, int y) {
+    icon_btn_data_t* d = (icon_btn_data_t*)w->internal_data;
+    uint32_t bg = w->bg_color;
+    
+    if (d && d->pressed) bg = 0xFF808080; /* Darker gray on press */
+    
+    fly_draw_rect_fill(s, x, y, w->w, w->h, bg);
+    fly_draw_rect_outline(s, x, y, w->w, w->h, 0xFF000000);
+    if (!d->pressed) {
+        fly_draw_rect_outline(s, x, y, w->w-1, w->h-1, 0xFFFFFFFF);
+    }
+    
+    /* Draw Icon Centered */
+    draw_icon_graphic(s, x + (w->w - 16)/2, y + (w->h - 16)/2, d->icon_type);
+}
 
 /* Button Handler */
 /* Button Handler: Lansează Terminalul */
 static bool terminal_btn_event(fly_widget_t* w, fly_event_t* e) {
     (void)w;
     
+    /* Close start menu if open */
+    if (start_menu_win) {
+        wm_destroy_window(start_menu_win);
+        start_menu_win = NULL;
+        start_menu_ctx = NULL;
+        wm_mark_dirty();
+    }
+
     /* Lansăm terminalul pe Mouse Up pentru a evita lansări multiple accidentale */
     if (e->type == FLY_EVENT_MOUSE_UP) {
         if (!shell_is_window_active()) {
@@ -60,6 +199,11 @@ static bool terminal_btn_event(fly_widget_t* w, fly_event_t* e) {
 static bool clock_btn_event(fly_widget_t* w, fly_event_t* e) {
     (void)w;
     if (e->type == FLY_EVENT_MOUSE_UP) {
+        if (start_menu_win) {
+            wm_destroy_window(start_menu_win);
+            start_menu_win = NULL;
+            start_menu_ctx = NULL;
+        }
         clock_app_create();
         return true;
     }
@@ -70,6 +214,11 @@ static bool clock_btn_event(fly_widget_t* w, fly_event_t* e) {
 static bool calc_btn_event(fly_widget_t* w, fly_event_t* e) {
     (void)w;
     if (e->type == FLY_EVENT_MOUSE_UP) {
+        if (start_menu_win) {
+            wm_destroy_window(start_menu_win);
+            start_menu_win = NULL;
+            start_menu_ctx = NULL;
+        }
         calculator_app_create();
         return true;
     }
@@ -80,6 +229,11 @@ static bool calc_btn_event(fly_widget_t* w, fly_event_t* e) {
 static bool note_btn_event(fly_widget_t* w, fly_event_t* e) {
     (void)w;
     if (e->type == FLY_EVENT_MOUSE_UP) {
+        if (start_menu_win) {
+            wm_destroy_window(start_menu_win);
+            start_menu_win = NULL;
+            start_menu_ctx = NULL;
+        }
         notepad_app_create();
         return true;
     }
@@ -90,6 +244,11 @@ static bool note_btn_event(fly_widget_t* w, fly_event_t* e) {
 static bool cal_btn_event(fly_widget_t* w, fly_event_t* e) {
     (void)w;
     if (e->type == FLY_EVENT_MOUSE_UP) {
+        if (start_menu_win) {
+            wm_destroy_window(start_menu_win);
+            start_menu_win = NULL;
+            start_menu_ctx = NULL;
+        }
         calendar_app_create();
         return true;
     }
@@ -100,6 +259,11 @@ static bool cal_btn_event(fly_widget_t* w, fly_event_t* e) {
 static bool files_btn_event(fly_widget_t* w, fly_event_t* e) {
     (void)w;
     if (e->type == FLY_EVENT_MOUSE_UP) {
+        if (start_menu_win) {
+            wm_destroy_window(start_menu_win);
+            start_menu_win = NULL;
+            start_menu_ctx = NULL;
+        }
         file_manager_app_create();
         return true;
     }
@@ -110,6 +274,11 @@ static bool files_btn_event(fly_widget_t* w, fly_event_t* e) {
 static bool img_btn_event(fly_widget_t* w, fly_event_t* e) {
     (void)w;
     if (e->type == FLY_EVENT_MOUSE_UP) {
+        if (start_menu_win) {
+            wm_destroy_window(start_menu_win);
+            start_menu_win = NULL;
+            start_menu_ctx = NULL;
+        }
         image_viewer_app_create(NULL);
         return true;
     }
@@ -120,6 +289,11 @@ static bool img_btn_event(fly_widget_t* w, fly_event_t* e) {
 static bool info_btn_event(fly_widget_t* w, fly_event_t* e) {
     (void)w;
     if (e->type == FLY_EVENT_MOUSE_UP) {
+        if (start_menu_win) {
+            wm_destroy_window(start_menu_win);
+            start_menu_win = NULL;
+            start_menu_ctx = NULL;
+        }
         sysinfo_app_create();
         return true;
     }
@@ -130,6 +304,11 @@ static bool info_btn_event(fly_widget_t* w, fly_event_t* e) {
 static bool task_btn_event(fly_widget_t* w, fly_event_t* e) {
     (void)w;
     if (e->type == FLY_EVENT_MOUSE_UP) {
+        if (start_menu_win) {
+            wm_destroy_window(start_menu_win);
+            start_menu_win = NULL;
+            start_menu_ctx = NULL;
+        }
         task_manager_app_create();
         return true;
     }
@@ -140,6 +319,11 @@ static bool task_btn_event(fly_widget_t* w, fly_event_t* e) {
 static bool paint_btn_event(fly_widget_t* w, fly_event_t* e) {
     (void)w;
     if (e->type == FLY_EVENT_MOUSE_UP) {
+        if (start_menu_win) {
+            wm_destroy_window(start_menu_win);
+            start_menu_win = NULL;
+            start_menu_ctx = NULL;
+        }
         paint_app_create();
         return true;
     }
@@ -150,6 +334,11 @@ static bool paint_btn_event(fly_widget_t* w, fly_event_t* e) {
 static bool demo_btn_event(fly_widget_t* w, fly_event_t* e) {
     (void)w;
     if (e->type == FLY_EVENT_MOUSE_UP) {
+        if (start_menu_win) {
+            wm_destroy_window(start_menu_win);
+            start_menu_win = NULL;
+            start_menu_ctx = NULL;
+        }
         demo3d_app_create();
         return true;
     }
@@ -160,6 +349,11 @@ static bool demo_btn_event(fly_widget_t* w, fly_event_t* e) {
 static bool mine_btn_event(fly_widget_t* w, fly_event_t* e) {
     (void)w;
     if (e->type == FLY_EVENT_MOUSE_UP) {
+        if (start_menu_win) {
+            wm_destroy_window(start_menu_win);
+            start_menu_win = NULL;
+            start_menu_ctx = NULL;
+        }
         minesweeper_app_create();
         return true;
     }
@@ -170,6 +364,11 @@ static bool mine_btn_event(fly_widget_t* w, fly_event_t* e) {
 static bool doom_btn_event(fly_widget_t* w, fly_event_t* e) {
     (void)w;
     if (e->type == FLY_EVENT_MOUSE_UP) {
+        if (start_menu_win) {
+            wm_destroy_window(start_menu_win);
+            start_menu_win = NULL;
+            start_menu_ctx = NULL;
+        }
         doom_app_create();
         return true;
     }
@@ -266,11 +465,11 @@ static void create_exit_popup() {
     int h = 140;
     surface_t* s = surface_create(w, h);
     if (!s) return;
-    surface_clear(s, 0xFFE0E0E0);
+    surface_clear(s, THEME_GRAY);
 
     popup_ctx = flyui_init(s);
     fly_widget_t* root = fly_panel_create(w, h);
-    root->bg_color = 0xFFE0E0E0;
+    root->bg_color = THEME_GRAY;
     flyui_set_root(popup_ctx, root);
 
     /* Title/Question */
@@ -304,13 +503,227 @@ static void create_exit_popup() {
     popup_win = wm_create_window(s, sx, sy);
 }
 
-static bool start_btn_event(fly_widget_t* w, fly_event_t* e) {
+/* Network Popup Handlers */
+static bool net_popup_close_event(fly_widget_t* w, fly_event_t* e) {
     (void)w;
     if (e->type == FLY_EVENT_MOUSE_UP) {
+        if (net_win) {
+            wm_destroy_window(net_win);
+            net_win = NULL;
+            net_ctx = NULL;
+            wm_mark_dirty();
+        }
+        return true;
+    }
+    return false;
+}
+
+static void create_net_popup() {
+    if (net_win) return;
+
+    int w = 250;
+    int h = 180;
+    surface_t* s = surface_create(w, h);
+    if (!s) return;
+    surface_clear(s, THEME_GRAY);
+
+    net_ctx = flyui_init(s);
+    fly_widget_t* root = fly_panel_create(w, h);
+    root->bg_color = THEME_GRAY;
+    flyui_set_root(net_ctx, root);
+
+    /* Title */
+    fly_widget_t* lbl_title = fly_label_create("Network Status");
+    lbl_title->x = 10; lbl_title->y = 10;
+    fly_widget_add(root, lbl_title);
+
+    /* Close Button */
+    fly_widget_t* btn_close = fly_button_create("X");
+    btn_close->x = w - 30; btn_close->y = 5; btn_close->w = 25; btn_close->h = 25;
+    btn_close->on_event = net_popup_close_event;
+    fly_widget_add(root, btn_close);
+
+    /* Data */
+    net_device_t* dev = net_get_primary_device();
+    char buf[64];
+    int y = 40;
+
+    if (dev) {
+        fly_widget_t* lbl_stat = fly_label_create("Status: Connected");
+        lbl_stat->x = 10; lbl_stat->y = y;
+        fly_widget_add(root, lbl_stat);
+        y += 20;
+
+        uint32_t ip = dev->ip;
+        sprintf(buf, "IP: %d.%d.%d.%d", ip&0xFF, (ip>>8)&0xFF, (ip>>16)&0xFF, (ip>>24)&0xFF);
+        fly_widget_t* lbl_ip = fly_label_create(buf);
+        lbl_ip->x = 10; lbl_ip->y = y;
+        fly_widget_add(root, lbl_ip);
+        y += 20;
+
+        uint32_t gw = dev->gateway;
+        sprintf(buf, "GW: %d.%d.%d.%d", gw&0xFF, (gw>>8)&0xFF, (gw>>16)&0xFF, (gw>>24)&0xFF);
+        fly_widget_t* lbl_gw = fly_label_create(buf);
+        lbl_gw->x = 10; lbl_gw->y = y;
+        fly_widget_add(root, lbl_gw);
+        y += 20;
+
+        uint32_t dns = dev->dns_server;
+        sprintf(buf, "DNS: %d.%d.%d.%d", dns&0xFF, (dns>>8)&0xFF, (dns>>16)&0xFF, (dns>>24)&0xFF);
+        fly_widget_t* lbl_dns = fly_label_create(buf);
+        lbl_dns->x = 10; lbl_dns->y = y;
+        fly_widget_add(root, lbl_dns);
+        y += 20;
+
+        sprintf(buf, "MAC: %02x:%02x:%02x:%02x:%02x:%02x", 
+            dev->mac[0], dev->mac[1], dev->mac[2], dev->mac[3], dev->mac[4], dev->mac[5]);
+        fly_widget_t* lbl_mac = fly_label_create(buf);
+        lbl_mac->x = 10; lbl_mac->y = y;
+        fly_widget_add(root, lbl_mac);
+    } else {
+        fly_widget_t* lbl_stat = fly_label_create("Status: No Device");
+        lbl_stat->x = 10; lbl_stat->y = y;
+        fly_widget_add(root, lbl_stat);
+    }
+
+    flyui_render(net_ctx);
+
+    gpu_device_t* gpu = gpu_get_primary();
+    /* Position near bottom right, above taskbar */
+    int sx = gpu->width - w - 10;
+    int sy = gpu->height - 40 - h - 5; 
+    net_win = wm_create_window(s, sx, sy);
+}
+
+static bool net_btn_event(fly_widget_t* w, fly_event_t* e) {
+    (void)w;
+    if (e->type == FLY_EVENT_MOUSE_UP) {
+        if (net_win) {
+            wm_destroy_window(net_win);
+            net_win = NULL;
+            net_ctx = NULL;
+            wm_mark_dirty();
+        } else {
+            create_net_popup();
+        }
+        return true;
+    }
+    return false;
+}
+
+/* Start Menu Implementation */
+static bool start_menu_shutdown_event(fly_widget_t* w, fly_event_t* e) {
+    (void)w;
+    if (e->type == FLY_EVENT_MOUSE_UP) {
+        if (start_menu_win) {
+            wm_destroy_window(start_menu_win);
+            start_menu_win = NULL;
+            start_menu_ctx = NULL;
+        }
         create_exit_popup();
         return true;
     }
     return false;
+}
+
+static void create_start_menu() {
+    if (start_menu_win) {
+        wm_destroy_window(start_menu_win);
+        start_menu_win = NULL;
+        start_menu_ctx = NULL;
+        wm_mark_dirty();
+        return;
+    }
+
+    int w = 150;
+    int h = 300;
+    surface_t* s = surface_create(w, h);
+    if (!s) return;
+    surface_clear(s, THEME_GRAY);
+    
+    /* Draw 3D border */
+    fly_draw_rect_outline(s, 0, 0, w, h, 0xFFFFFFFF);
+    fly_draw_rect_outline(s, 0, 0, w-1, h-1, 0xFF000000);
+
+    start_menu_ctx = flyui_init(s);
+    fly_widget_t* root = fly_panel_create(w, h);
+    root->bg_color = THEME_GRAY;
+    flyui_set_root(start_menu_ctx, root);
+    
+    /* Side bar */
+    fly_widget_t* side = fly_panel_create(24, h-4);
+    side->x = 2; side->y = 2;
+    side->bg_color = 0xFF000080; /* Dark Blue */
+    fly_widget_add(root, side);
+
+    int y = 5;
+    int bh = 25;
+    int bx = 30;
+    int bw = w - 35;
+    
+    /* Menu Items */
+    fly_widget_t* btn;
+    
+    btn = fly_button_create("Terminal"); btn->x = bx; btn->y = y; btn->w = bw; btn->h = bh; btn->on_event = terminal_btn_event; fly_widget_add(root, btn); y += bh + 2;
+    btn = fly_button_create("Files");    btn->x = bx; btn->y = y; btn->w = bw; btn->h = bh; btn->on_event = files_btn_event;    fly_widget_add(root, btn); y += bh + 2;
+    btn = fly_button_create("Notepad");  btn->x = bx; btn->y = y; btn->w = bw; btn->h = bh; btn->on_event = note_btn_event;     fly_widget_add(root, btn); y += bh + 2;
+    btn = fly_button_create("Paint");    btn->x = bx; btn->y = y; btn->w = bw; btn->h = bh; btn->on_event = paint_btn_event;    fly_widget_add(root, btn); y += bh + 2;
+    btn = fly_button_create("Calc");     btn->x = bx; btn->y = y; btn->w = bw; btn->h = bh; btn->on_event = calc_btn_event;     fly_widget_add(root, btn); y += bh + 2;
+    btn = fly_button_create("Run...");   btn->x = bx; btn->y = y; btn->w = bw; btn->h = bh; btn->on_event = run_btn_event;      fly_widget_add(root, btn); y += bh + 2;
+    
+    y += 5;
+    /* Separator */
+    fly_widget_t* sep = fly_panel_create(bw, 2);
+    sep->x = bx; sep->y = y; sep->bg_color = 0xFF808080;
+    fly_widget_add(root, sep);
+    y += 10;
+    
+    btn = fly_button_create("Shutdown"); btn->x = bx; btn->y = y; btn->w = bw; btn->h = bh; btn->on_event = start_menu_shutdown_event; fly_widget_add(root, btn);
+
+    flyui_render(start_menu_ctx);
+
+    gpu_device_t* gpu = gpu_get_primary();
+    /* Position above start button */
+    start_menu_win = wm_create_window(s, 0, gpu->height - 32 - h);
+}
+
+static bool start_btn_event(fly_widget_t* w, fly_event_t* e) {
+    (void)w;
+    if (e->type == FLY_EVENT_MOUSE_UP) {
+        create_start_menu();
+        return true;
+    }
+    return false;
+}
+
+static fly_widget_t* create_taskbar_btn(int x, int y, int w, int h, int icon, bool (*cb)(fly_widget_t*, fly_event_t*)) {
+    fly_widget_t* btn = fly_widget_create();
+    btn->x = x; btn->y = y; btn->w = w; btn->h = h;
+    
+    icon_btn_data_t* d = (icon_btn_data_t*)kmalloc(sizeof(icon_btn_data_t));
+    d->icon_type = icon;
+    d->pressed = false;
+    d->event_cb = cb;
+    
+    btn->internal_data = d;
+    btn->bg_color = THEME_GRAY;
+    btn->on_draw = taskbar_btn_draw;
+    
+    /* Generic Event Wrapper */
+    btn->on_event = [](fly_widget_t* w, fly_event_t* e) -> bool {
+        icon_btn_data_t* d = (icon_btn_data_t*)w->internal_data;
+        if (e->type == FLY_EVENT_MOUSE_DOWN) {
+            d->pressed = true;
+            return true;
+        } else if (e->type == FLY_EVENT_MOUSE_UP) {
+            d->pressed = false;
+            if (d->event_cb) return d->event_cb(w, e);
+            return true;
+        }
+        return false;
+    };
+    
+    return btn;
 }
 
 static void create_taskbar() {
@@ -318,139 +731,83 @@ static void create_taskbar() {
     if (!gpu) return;
 
     int w = gpu->width;
-    int h = 40; /* Taskbar height */
+    int h = 32; /* Taskbar height */
     
     /* 1. Create Surface */
     surface_t* s = surface_create(w, h);
     if (!s) return;
     
-    /* Solid gray background for taskbar */
-    surface_clear(s, 0xFFC0C0C0);
+    /* Gray background */
+    surface_clear(s, THEME_GRAY);
 
     /* 2. Init FlyUI */
     taskbar_ctx = flyui_init(s);
     
     /* 3. Create Widgets */
     fly_widget_t* root = fly_panel_create(w, h);
-    root->bg_color = 0xFFC0C0C0;
+    root->bg_color = THEME_GRAY;
     flyui_set_root(taskbar_ctx, root);
 
-    int x = 10;
-    int y = 5;
-    int bw = 60; /* Reduced width to fit more apps */
-    int bh = 30;
-    int gap = 5;
-
-    /* Start Button (<) */
-    fly_widget_t* btn_start = fly_button_create("<");
-    btn_start->x = x; btn_start->y = y; btn_start->w = 30; btn_start->h = bh;
-    btn_start->on_event = start_btn_event;
+    int x = 0;
+    int y = 0;
+    int bw = 32; /* Icon button width */
+    int bh = 32; /* Icon button height */
+    
+    /* Start Button */
+    fly_widget_t* btn_start = create_taskbar_btn(x, y, 40, bh, ICON_START, start_btn_event);
     fly_widget_add(root, btn_start);
-    x += 30 + gap;
+    x += 40 + 4;
 
-    /* Run Button */
-    fly_widget_t* btn_run = fly_button_create("Run");
-    btn_run->x = x; btn_run->y = y; btn_run->w = 40; btn_run->h = bh;
-    btn_run->on_event = run_btn_event;
-    fly_widget_add(root, btn_run);
-    x += 40 + gap;
-
-    /* Terminal Button */
-    fly_widget_t* btn = fly_button_create("Term");
-    btn->x = x; btn->y = y; btn->w = bw; btn->h = bh;
-    btn->on_event = terminal_btn_event;
-    fly_widget_add(root, btn);
-    x += bw + gap;
-
-    /* File Manager */
-    fly_widget_t* btn_files = fly_button_create("Files");
-    btn_files->x = x; btn_files->y = y; btn_files->w = bw; btn_files->h = bh;
-    btn_files->on_event = files_btn_event;
-    fly_widget_add(root, btn_files);
-    x += bw + gap;
-
-    /* Image Viewer Button */
-    fly_widget_t* btn_img = fly_button_create("Img");
-    btn_img->x = x; btn_img->y = y; btn_img->w = 40; btn_img->h = bh;
-    btn_img->on_event = img_btn_event;
-    fly_widget_add(root, btn_img);
-    x += 40 + gap;
-
-    /* Notepad Button */
-    fly_widget_t* btn_note = fly_button_create("Edit");
-    btn_note->x = x; btn_note->y = y; btn_note->w = 50; btn_note->h = bh;
-    btn_note->on_event = note_btn_event;
-    fly_widget_add(root, btn_note);
-    x += 50 + gap;
-
+    /* Run */
+    fly_widget_add(root, create_taskbar_btn(x, y, bw, bh, ICON_RUN, run_btn_event)); x += bw;
+    
+    /* Terminal */
+    fly_widget_add(root, create_taskbar_btn(x, y, bw, bh, ICON_TERM, terminal_btn_event)); x += bw;
+    
+    /* Files */
+    fly_widget_add(root, create_taskbar_btn(x, y, bw, bh, ICON_FILES, files_btn_event)); x += bw;
+    
+    /* Image */
+    fly_widget_add(root, create_taskbar_btn(x, y, bw, bh, ICON_IMG, img_btn_event)); x += bw;
+    
+    /* Notepad */
+    fly_widget_add(root, create_taskbar_btn(x, y, bw, bh, ICON_NOTE, note_btn_event)); x += bw;
+    
     /* Paint */
-    fly_widget_t* btn_paint = fly_button_create("Paint");
-    btn_paint->x = x; btn_paint->y = y; btn_paint->w = 50; btn_paint->h = bh;
-    btn_paint->on_event = paint_btn_event;
-    fly_widget_add(root, btn_paint);
-    x += 50 + gap;
-
-    /* Calculator Button */
-    fly_widget_t* btn_calc = fly_button_create("Calc");
-    btn_calc->x = x; btn_calc->y = y; btn_calc->w = 50; btn_calc->h = bh;
-    btn_calc->on_event = calc_btn_event;
-    fly_widget_add(root, btn_calc);
-    x += 50 + gap;
-
-    /* Clock Button */
-    fly_widget_t* btn_clk = fly_button_create("Clock");
-    btn_clk->x = x; btn_clk->y = y; btn_clk->w = 50; btn_clk->h = bh;
-    btn_clk->on_event = clock_btn_event;
-    fly_widget_add(root, btn_clk);
-    x += 50 + gap;
-
-    /* Calendar Button */
-    fly_widget_t* btn_cal = fly_button_create("Cal");
-    btn_cal->x = x; btn_cal->y = y; btn_cal->w = 40; btn_cal->h = bh;
-    btn_cal->on_event = cal_btn_event;
-    fly_widget_add(root, btn_cal);
-    x += 40 + gap;
-
+    fly_widget_add(root, create_taskbar_btn(x, y, bw, bh, ICON_PAINT, paint_btn_event)); x += bw;
+    
+    /* Calc */
+    fly_widget_add(root, create_taskbar_btn(x, y, bw, bh, ICON_CALC, calc_btn_event)); x += bw;
+    
+    /* Clock App */
+    fly_widget_add(root, create_taskbar_btn(x, y, bw, bh, ICON_CLOCK, clock_btn_event)); x += bw;
+    
+    /* Calendar */
+    fly_widget_add(root, create_taskbar_btn(x, y, bw, bh, ICON_CAL, cal_btn_event)); x += bw;
+    
     /* Task Manager */
-    fly_widget_t* btn_task = fly_button_create("Tasks");
-    btn_task->x = x; btn_task->y = y; btn_task->w = 50; btn_task->h = bh;
-    btn_task->on_event = task_btn_event;
-    fly_widget_add(root, btn_task);
-    x += 50 + gap;
-
+    fly_widget_add(root, create_taskbar_btn(x, y, bw, bh, ICON_TASK, task_btn_event)); x += bw;
+    
     /* Info */
-    fly_widget_t* btn_info = fly_button_create("Info");
-    btn_info->x = x; btn_info->y = y; btn_info->w = 40; btn_info->h = bh;
-    btn_info->on_event = info_btn_event;
-    fly_widget_add(root, btn_info);
-    x += 40 + gap;
-
-    /* 3D Demo */
-    fly_widget_t* btn_3d = fly_button_create("3D");
-    btn_3d->x = x; btn_3d->y = y; btn_3d->w = 30; btn_3d->h = bh;
-    btn_3d->on_event = demo_btn_event;
-    fly_widget_add(root, btn_3d);
-    x += 30 + gap;
-
-    /* Minesweeper Button */
-    fly_widget_t* btn_mine = fly_button_create("Mine");
-    btn_mine->x = x; btn_mine->y = y; btn_mine->w = 40; btn_mine->h = bh;
-    btn_mine->on_event = mine_btn_event;
-    fly_widget_add(root, btn_mine);
-    x += 40 + gap;
-
-    /* Doom Button */
-    fly_widget_t* btn_doom = fly_button_create("Doom");
-    btn_doom->x = x; btn_doom->y = y; btn_doom->w = 50; btn_doom->h = bh;
-    btn_doom->on_event = doom_btn_event;
-    fly_widget_add(root, btn_doom);
-    x += 50 + gap;
+    fly_widget_add(root, create_taskbar_btn(x, y, bw, bh, ICON_INFO, info_btn_event)); x += bw;
+    
+    /* 3D */
+    fly_widget_add(root, create_taskbar_btn(x, y, bw, bh, ICON_3D, demo_btn_event)); x += bw;
+    
+    /* Mine */
+    fly_widget_add(root, create_taskbar_btn(x, y, bw, bh, ICON_MINE, mine_btn_event)); x += bw;
+    
+    /* Doom */
+    fly_widget_add(root, create_taskbar_btn(x, y, bw, bh, ICON_DOOM, doom_btn_event)); x += bw;
+    
+    /* Net (Right Aligned) */
+    fly_widget_add(root, create_taskbar_btn(w - 150, y, bw, bh, ICON_NET, net_btn_event));
 
     /* Clock Widget (Right Aligned) */
     fly_widget_t* sys_clock = fly_panel_create(100, h);
     sys_clock->x = w - 105; /* 5px margin from right */
     sys_clock->y = 0;
-    sys_clock->bg_color = 0xFFC0C0C0;
+    sys_clock->bg_color = THEME_GRAY;
     sys_clock->on_draw = taskbar_clock_draw;
     fly_widget_add(root, sys_clock);
 
@@ -505,10 +862,6 @@ extern "C" int cmd_launch(int argc, char** argv) {
     window_t* drag_win = NULL;
     int drag_off_x = 0;
     int drag_off_y = 0;
-    
-    /* State for Resizing */
-    window_t* resize_win = NULL;
-    int resize_mode = 0; /* 0=None, 1=Right, 2=Bottom, 3=Corner */
 
     while (is_gui_running) {
         /* Update Apps */
@@ -548,49 +901,40 @@ extern "C" int cmd_launch(int argc, char** argv) {
             /* Mouse Event Handling */
             if (ev.type == INPUT_MOUSE_MOVE || ev.type == INPUT_MOUSE_CLICK) {
                 
-                /* Handle Resizing Logic */
-                if (resize_win && ev.type == INPUT_MOUSE_MOVE) {
-                    if (resize_mode == 1 || resize_mode == 3) { /* Width */
-                        int new_w = ev.mouse_x - resize_win->x;
-                        if (new_w > 100) resize_win->w = new_w;
-                    }
-                    if (resize_mode == 2 || resize_mode == 3) { /* Height */
-                        int new_h = ev.mouse_y - resize_win->y;
-                        if (new_h > 50) resize_win->h = new_h;
-                    }
-                    wm_mark_dirty();
-                }
-
                 /* Handle Dragging Logic */
-                else if (drag_win && ev.type == INPUT_MOUSE_MOVE) {
+                if (drag_win && ev.type == INPUT_MOUSE_MOVE) {
                     drag_win->x = ev.mouse_x - drag_off_x;
                     drag_win->y = ev.mouse_y - drag_off_y;
-                    
-                    /* Snap to top for maximize hint? (Optional) */
-                    if (drag_win->y < 0) drag_win->y = 0;
-                    
                     wm_mark_dirty();
                 }
 
                 /* 1. Find Window Under Mouse (Top-most) if not dragging */
-                window_t* target = NULL;
-                if (resize_win) target = resize_win;
-                else if (drag_win) target = drag_win;
-                else target = wm_find_window_at(ev.mouse_x, ev.mouse_y);
+                window_t* target = drag_win ? drag_win : wm_find_window_at(ev.mouse_x, ev.mouse_y);
 
                 /* 2. Handle Focus & Drag Start on Click */
                 if (ev.type == INPUT_MOUSE_CLICK) {
                     if (ev.pressed) {
-                        if (target) {
-                            wm_focus_window(target);
-                            wm_mark_dirty();
-                            
-                            /* Check for Title Bar Hit (0-24px relative to window) */
-                            int rel_y = ev.mouse_y - target->y;
-                            if (rel_y >= 0 && rel_y < 24 && target != taskbar_win) { /* Fix: Don't drag taskbar */
-                                drag_win = target;
-                                drag_off_x = ev.mouse_x - target->x;
-                                drag_off_y = ev.mouse_y - target->y;
+                        /* Handle Scroll (Buttons 4 & 5) */
+                        if (ev.keycode == 4 || ev.keycode == 5) {
+                            if (target == shell_get_window()) {
+                                /* Map Scroll to History Navigation (Ctrl-P / Ctrl-N) */
+                                char key = (ev.keycode == 4) ? 16 /* Ctrl-P */ : 14 /* Ctrl-N */;
+                                shell_handle_char(key);
+                            }
+                        }
+                        /* Handle Left Click (Button 1) for Focus/Drag */
+                        else if (ev.keycode == 1) {
+                            if (target) {
+                                wm_focus_window(target);
+                                wm_mark_dirty();
+                                
+                                /* Check for Title Bar Hit (0-24px relative to window) */
+                                int rel_y = ev.mouse_y - target->y;
+                                if (rel_y >= 0 && rel_y < 24 && target != taskbar_win) { /* Fix: Don't drag taskbar */
+                                    drag_win = target;
+                                    drag_off_x = ev.mouse_x - target->x;
+                                    drag_off_y = ev.mouse_y - target->y;
+                                }
                             }
                         }
                     } else {
@@ -694,6 +1038,52 @@ extern "C" int cmd_launch(int argc, char** argv) {
                     }
                 }
 
+                /* 3.15 Dispatch to Net Popup */
+                if (target == net_win && net_ctx) {
+                    fly_event_t fev;
+                    fev.mx = ev.mouse_x - net_win->x;
+                    fev.my = ev.mouse_y - net_win->y;
+                    fev.keycode = 0;
+                    fev.type = FLY_EVENT_NONE;
+
+                    if (ev.type == INPUT_MOUSE_MOVE) {
+                        fev.type = FLY_EVENT_MOUSE_MOVE;
+                    } else if (ev.type == INPUT_MOUSE_CLICK) {
+                        fev.type = ev.pressed ? FLY_EVENT_MOUSE_DOWN : FLY_EVENT_MOUSE_UP;
+                    }
+
+                    if (fev.type != FLY_EVENT_NONE) {
+                        flyui_dispatch_event(net_ctx, &fev);
+                        if (fev.type != FLY_EVENT_MOUSE_MOVE) {
+                            flyui_render(net_ctx);
+                            wm_mark_dirty();
+                        }
+                    }
+                }
+
+                /* 3.16 Dispatch to Start Menu */
+                if (target == start_menu_win && start_menu_ctx) {
+                    fly_event_t fev;
+                    fev.mx = ev.mouse_x - start_menu_win->x;
+                    fev.my = ev.mouse_y - start_menu_win->y;
+                    fev.keycode = 0;
+                    fev.type = FLY_EVENT_NONE;
+
+                    if (ev.type == INPUT_MOUSE_MOVE) {
+                        fev.type = FLY_EVENT_MOUSE_MOVE;
+                    } else if (ev.type == INPUT_MOUSE_CLICK) {
+                        fev.type = ev.pressed ? FLY_EVENT_MOUSE_DOWN : FLY_EVENT_MOUSE_UP;
+                    }
+
+                    if (fev.type != FLY_EVENT_NONE) {
+                        flyui_dispatch_event(start_menu_ctx, &fev);
+                        if (fev.type != FLY_EVENT_MOUSE_MOVE) {
+                            flyui_render(start_menu_ctx);
+                            wm_mark_dirty();
+                        }
+                    }
+                }
+
                 /* 3. Dispatch to Taskbar (only if it's the target and we are NOT dragging) */
                 if (target == taskbar_win && taskbar_ctx && !drag_win) {
                     fly_event_t fev;
@@ -740,6 +1130,12 @@ extern "C" int cmd_launch(int argc, char** argv) {
     if (popup_win) wm_destroy_window(popup_win);
     popup_win = NULL;
     popup_ctx = NULL;
+    if (net_win) wm_destroy_window(net_win);
+    net_win = NULL;
+    net_ctx = NULL;
+    if (start_menu_win) wm_destroy_window(start_menu_win);
+    start_menu_win = NULL;
+    start_menu_ctx = NULL;
     
     /* Dacă terminalul a fost deschis, îl închidem curat */
     if (shell_is_window_active()) {
