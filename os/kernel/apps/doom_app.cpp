@@ -3,8 +3,13 @@
 #include "../ui/wm/wm.h"
 #include "../include/setjmp.h"
 
+extern "C" void serial(const char *fmt, ...);
+
 /* Defined in doomgeneric_chrysalis.c */
-extern "C" void doom_key_push(int pressed, unsigned char key);
+extern "C" void DG_KeyDown(int key);
+extern "C" void DG_KeyUp(int key);
+extern "C" void DG_MouseMove(int dx, int dy);
+extern "C" void DG_MouseButton(int button, int pressed);
 extern "C" window_t* doom_get_window(void);
 extern "C" void doom_destroy_window(void);
 
@@ -59,39 +64,70 @@ bool doom_app_handle_event(input_event_t* ev) {
     window_t* win = doom_get_window();
     if (!win) return false;
     
+    /* Handle Window Close (Title Bar [X]) */
     if (ev->type == INPUT_MOUSE_CLICK && ev->pressed) {
         int lx = ev->mouse_x - win->x;
         int ly = ev->mouse_y - win->y;
         
-        /* Close Button (Top Right) */
-        /* Assuming standard window layout from other apps */
+        /* Close Button Area: Top Right, inside Title Bar (24px height) */
         if (lx >= win->w - 20 && ly < 24) {
+            serial("[DOOM] Window close requested\n");
             doom_destroy_window();
             doom_running = false;
             return true;
         }
     }
     
+    /* Handle Mouse Input (Movement & Buttons) */
+    static int last_mx = -1, last_my = -1;
+    
+    if (ev->type == INPUT_MOUSE_MOVE) {
+        if (last_mx != -1) {
+            int dx = ev->mouse_x - last_mx;
+            int dy = ev->mouse_y - last_my;
+            if (dx != 0 || dy != 0) {
+                DG_MouseMove(dx, dy);
+            }
+        }
+        last_mx = ev->mouse_x;
+        last_my = ev->mouse_y;
+    }
+    else if (ev->type == INPUT_MOUSE_CLICK) {
+        /* Map Left(1) -> 0, Right(2) -> 1 for Doom? Or just pass raw */
+        DG_MouseButton(ev->keycode, ev->pressed ? 1 : 0);
+        /* Update position on click too */
+        last_mx = ev->mouse_x;
+        last_my = ev->mouse_y;
+    }
+
     if (ev->type == INPUT_KEYBOARD) {
         /* Map Chrysalis Keys to Doom Keys */
         unsigned char key = 0;
         uint32_t k = ev->keycode;
         
         /* Basic mapping */
-        if (k >= 'a' && k <= 'z') key = k;
-        else if (k >= 'A' && k <= 'Z') key = k + 32; // to lower
+        if (k >= 'a' && k <= 'z') key = k - 32; // Doom uses UPPERCASE for ASCII keys usually, or scancodes
+        else if (k >= 'A' && k <= 'Z') key = k;
         else if (k >= '0' && k <= '9') key = k;
+        
+        /* WASD -> Arrows Mapping */
+        else if (k == 'w' || k == 'W') key = 0xAD; // KEY_UPARROW
+        else if (k == 's' || k == 'S') key = 0xAF; // KEY_DOWNARROW
+        else if (k == 'a' || k == 'A') key = 0xAC; // KEY_LEFTARROW
+        else if (k == 'd' || k == 'D') key = 0xAE; // KEY_RIGHTARROW
+        
         else if (k == 0x48) key = 0xAD; // Up Arrow (KEY_UPARROW)
         else if (k == 0x50) key = 0xAF; // Down Arrow (KEY_DOWNARROW)
         else if (k == 0x4B) key = 0xAC; // Left Arrow (KEY_LEFTARROW)
         else if (k == 0x4D) key = 0xAE; // Right Arrow (KEY_RIGHTARROW)
-        else if (k == 0x1C) key = 13;   // Enter
+        else if (k == '\n') key = 13;   // Enter (KEY_ENTER)
         else if (k == 0x39) key = ' ';  // Space
         else if (k == 0x1D) key = 0x80; // Ctrl (Fire)
         else if (k == 0x01) key = 27;   // Esc
         
         if (key) {
-            doom_key_push(ev->pressed ? 1 : 0, key);
+            if (ev->pressed) DG_KeyDown(key);
+            else DG_KeyUp(key);
             return true;
         }
     }
