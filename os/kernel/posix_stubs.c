@@ -24,9 +24,9 @@ extern int doom_iwad_open(const char* name, void** data, size_t* size);
 /* FILE este definit în stdio.h */
 
 int mkdir(const char* path, mode_t mode) {
-    (void)path;
     (void)mode;
-    return -1; /* Fail implicit */
+    fat_automount();
+    return fat32_create_directory(path);
 }
 
 typedef struct {

@@ -70,44 +70,108 @@ struct fat_fsinfo {
     uint32_t trail_sig;     // 0xAA550000
 } __attribute__((packed));
 
-/* Convert path to 8.3 DOS name (e.g. "test.txt" -> "TEST    TXT") */
-static void to_dos_name(const char* path, char* dst) {
+/* Convert a single filename component to 8.3 DOS name */
+static void to_dos_name_component(const char* name, int len, char* dst) {
     memset(dst, ' ', 11);
-    
-    /* Skip directory part if present */
-    const char* p = path;
-    const char* last_slash = 0;
-    while (*p) { if (*p == '/') last_slash = p; p++; }
-    
-    /* Handle trailing slash: if last_slash is the very last char, ignore it and find previous slash */
-    if (last_slash && *(last_slash + 1) == 0) {
-        const char* end = last_slash;
-        p = path;
-        last_slash = 0;
-        while (p < end) { if (*p == '/') last_slash = p; p++; }
-    }
-
-    if (last_slash) path = last_slash + 1;
-    
-    /* Name */
     int i = 0;
-    for (; i < 8 && path[i] && path[i] != '.' && path[i] != '/'; i++) {
-        char c = path[i];
+    for (; i < 8 && i < len && name[i] != '.'; i++) {
+        char c = name[i];
         if (c >= 'a' && c <= 'z') c -= 32;
         dst[i] = c;
     }
-    
-    /* Extension */
-    while (path[i] && path[i] != '.' && path[i] != '/') i++;
-    if (path[i] == '.') {
+    while (i < len && name[i] != '.') i++;
+    if (i < len && name[i] == '.') {
         i++;
         int j = 8;
-        for (; j < 11 && path[i] && path[i] != '/'; i++, j++) {
-            char c = path[i];
+        for (; j < 11 && i < len; i++, j++) {
+            char c = name[i];
             if (c >= 'a' && c <= 'z') c -= 32;
             dst[j] = c;
         }
     }
+}
+
+/* Helper to find an entry in a directory cluster */
+static int find_in_cluster(uint32_t dir_cluster, const char* name, int name_len, 
+                           uint32_t data_start, uint32_t fat_start, uint32_t spc, uint32_t bps,
+                           uint32_t* out_cluster, uint32_t* out_size, uint32_t* out_sector, uint32_t* out_offset, bool* out_is_dir) 
+{
+    char target[11];
+    to_dos_name_component(name, name_len, target);
+    
+    uint8_t* sector = (uint8_t*)kmalloc(512);
+    if (!sector) return -1;
+
+    uint32_t current_cluster = dir_cluster;
+    while (current_cluster < 0x0FFFFFF8) {
+        uint32_t cluster_lba = data_start + (current_cluster - 2) * spc;
+        for (int i = 0; i < (int)spc; i++) {
+            disk_read_sector(cluster_lba + i, sector);
+            struct fat_dir_entry* entries = (struct fat_dir_entry*)sector;
+            for (int j = 0; j < 512 / 32; j++) {
+                if (entries[j].name[0] == 0) { kfree(sector); return -1; }
+                if ((uint8_t)entries[j].name[0] == 0xE5) continue;
+                if (entries[j].attr == 0x0F) continue;
+
+                if (memcmp(entries[j].name, target, 11) == 0) {
+                    if (out_cluster) {
+                        *out_cluster = (entries[j].cluster_hi << 16) | entries[j].cluster_low;
+                        if (*out_cluster == 0) *out_cluster = 0; // Root is 0 or 2 usually, handle carefully
+                    }
+                    if (out_size) *out_size = entries[j].size;
+                    if (out_sector) *out_sector = cluster_lba + i;
+                    if (out_offset) *out_offset = j;
+                    if (out_is_dir) *out_is_dir = (entries[j].attr & 0x10) ? true : false;
+                    kfree(sector);
+                    return 0;
+                }
+            }
+        }
+        
+        /* Next cluster */
+        uint32_t fat_sector = fat_start + (current_cluster * 4) / bps;
+        uint32_t fat_offset = (current_cluster * 4) % bps;
+        disk_read_sector(fat_sector, sector);
+        current_cluster = (*(uint32_t*)(sector + fat_offset)) & 0x0FFFFFFF;
+    }
+    kfree(sector);
+    return -1;
+}
+
+/* Resolve path to parent directory cluster and final filename component */
+static int resolve_parent(const char* path, uint32_t root_cluster, uint32_t data_start, uint32_t fat_start, uint32_t spc, uint32_t bps,
+                          uint32_t* out_parent_cluster, const char** out_filename, int* out_filename_len) {
+    const char* p = path;
+    if (*p == '/') p++;
+    
+    uint32_t curr_cluster = root_cluster;
+    
+    while (*p) {
+        const char* end = p;
+        while (*end && *end != '/') end++;
+        int len = end - p;
+        
+        if (*end == 0) {
+            /* Last component */
+            *out_parent_cluster = curr_cluster;
+            *out_filename = p;
+            *out_filename_len = len;
+            return 0;
+        }
+        
+        /* Find directory */
+        uint32_t next_cluster;
+        bool is_dir;
+        if (find_in_cluster(curr_cluster, p, len, data_start, fat_start, spc, bps, &next_cluster, NULL, NULL, NULL, &is_dir) != 0) {
+            return -1; /* Path not found */
+        }
+        if (!is_dir) return -1; /* Not a directory */
+        
+        curr_cluster = next_cluster;
+        if (curr_cluster == 0) curr_cluster = root_cluster;
+        p = end + 1;
+    }
+    return -1;
 }
 
 /* --- FAT32 File Operations --- */
@@ -134,41 +198,31 @@ extern "C" int fat32_read_file(const char* path, void* buf, uint32_t max_size) {
     uint8_t spc = bpb->sectors_per_cluster;
     uint16_t bps = bpb->bytes_per_sector;
 
-    /* 2. Find File in Root Directory */
-    char target[11];
-    to_dos_name(path, target);
-
-    uint32_t current_cluster = root_cluster;
+    /* 2. Resolve Path */
     uint32_t file_cluster = 0;
     uint32_t file_size = 0;
-    bool found = false;
+    uint32_t parent_cluster;
+    const char* fname;
+    int fname_len;
 
-    /* Simple scan of root cluster (first cluster only for simplicity) */
-    uint32_t lba = data_start + (current_cluster - 2) * spc;
-    for (int i = 0; i < spc; i++) {
-        disk_read_sector(lba + i, sector);
-        struct fat_dir_entry* entries = (struct fat_dir_entry*)sector;
-        for (int j = 0; j < 512 / 32; j++) {
-            if (entries[j].name[0] == 0) break;
-            if ((uint8_t)entries[j].name[0] == 0xE5) continue;
-            if (entries[j].attr & 0x0F) continue; /* Skip LFN/Dir/Vol */
-
-            if (memcmp(entries[j].name, target, 11) == 0) {
-                file_cluster = (entries[j].cluster_hi << 16) | entries[j].cluster_low;
-                file_size = entries[j].size;
-                found = true;
-                break;
-            }
-        }
-        if (found) break;
+    if (resolve_parent(path, root_cluster, data_start, fat_start, spc, bps, &parent_cluster, &fname, &fname_len) != 0) {
+        kfree(sector); return -1;
     }
 
-    if (!found) { kfree(sector); return -1; }
+    bool is_dir;
+    if (find_in_cluster(parent_cluster, fname, fname_len, data_start, fat_start, spc, bps, &file_cluster, &file_size, NULL, NULL, &is_dir) != 0) {
+        kfree(sector); return -1;
+    }
+    
+    if (is_dir) {
+        /* Cannot read directory as file */
+        kfree(sector); return -1;
+    }
 
     /* 3. Read File Data */
     uint32_t bytes_read = 0;
     uint8_t* out = (uint8_t*)buf;
-    current_cluster = file_cluster;
+    uint32_t current_cluster = file_cluster;
 
     while (bytes_read < file_size && bytes_read < max_size) {
         uint32_t cluster_lba = data_start + (current_cluster - 2) * spc;
@@ -216,41 +270,27 @@ extern "C" int fat32_read_file_offset(const char* path, void* buf, uint32_t size
     uint16_t bps = bpb->bytes_per_sector;
     uint32_t cluster_bytes = spc * bps;
 
-    /* 2. Find File */
-    char target[11];
-    to_dos_name(path, target);
-
-    uint32_t current_cluster = root_cluster;
+    /* 2. Resolve Path */
     uint32_t file_cluster = 0;
     uint32_t file_size = 0;
-    bool found = false;
+    uint32_t parent_cluster;
+    const char* fname;
+    int fname_len;
 
-    /* Scan root dir (simplified) */
-    uint32_t lba = data_start + (current_cluster - 2) * spc;
-    for (int i = 0; i < spc; i++) {
-        disk_read_sector(lba + i, sector);
-        struct fat_dir_entry* entries = (struct fat_dir_entry*)sector;
-        for (int j = 0; j < 512 / 32; j++) {
-            if (entries[j].name[0] == 0) break;
-            if ((uint8_t)entries[j].name[0] == 0xE5) continue;
-            if (entries[j].attr & 0x0F) continue;
-
-            if (memcmp(entries[j].name, target, 11) == 0) {
-                file_cluster = (entries[j].cluster_hi << 16) | entries[j].cluster_low;
-                file_size = entries[j].size;
-                found = true;
-                break;
-            }
-        }
-        if (found) break;
+    if (resolve_parent(path, root_cluster, data_start, fat_start, spc, bps, &parent_cluster, &fname, &fname_len) != 0) {
+        kfree(sector); return -1;
     }
 
-    if (!found) { kfree(sector); return -1; }
+    bool is_dir;
+    if (find_in_cluster(parent_cluster, fname, fname_len, data_start, fat_start, spc, bps, &file_cluster, &file_size, NULL, NULL, &is_dir) != 0) {
+        kfree(sector); return -1;
+    }
+
     if (offset >= file_size) { kfree(sector); return 0; }
     if (offset + size > file_size) size = file_size - offset;
 
     /* 3. Seek to cluster */
-    current_cluster = file_cluster;
+    uint32_t current_cluster = file_cluster;
     uint32_t clusters_to_skip = offset / cluster_bytes;
     uint32_t offset_in_cluster = offset % cluster_bytes;
 
@@ -314,11 +354,18 @@ extern "C" int fat32_create_file(const char* path, const void* data, uint32_t si
     uint8_t spc = bpb->sectors_per_cluster;
     uint32_t sectors_per_fat = bpb->sectors_per_fat_32;
 
-    char target[11];
-    to_dos_name(path, target);
+    /* 2. Resolve Parent Directory */
+    uint32_t parent_cluster;
+    const char* fname;
+    int fname_len;
+    if (resolve_parent(path, root_cluster, data_start, fat_start, spc, bpb->bytes_per_sector, &parent_cluster, &fname, &fname_len) != 0) {
+        kfree(sector); return -1;
+    }
 
-    /* 2. Find or Create Directory Entry */
-    uint32_t dir_lba = data_start + (root_cluster - 2) * spc;
+    char target[11];
+    to_dos_name_component(fname, fname_len, target);
+
+    uint32_t dir_lba = data_start + (parent_cluster - 2) * spc;
     uint32_t entry_sector_lba = 0;
     uint32_t entry_offset = 0;
     bool found_existing = false;
@@ -432,48 +479,36 @@ extern "C" void fat32_list_directory(const char* path) {
     uint8_t spc = bpb->sectors_per_cluster;
     uint16_t bps = bpb->bytes_per_sector;
 
-    uint32_t target_cluster = root_cluster;
+    uint32_t target_cluster = 0;
     const char* display_path = "/";
 
     /* Resolve path if not root */
     if (path && path[0] && !(path[0] == '/' && path[1] == 0)) {
         display_path = path;
-        char target[11];
-        to_dos_name(path, target);
         
-        bool found = false;
-        uint32_t dir_lba = data_start + (root_cluster - 2) * spc;
-        
-        /* Scan root for the directory name */
-        for (int i = 0; i < spc; i++) {
-            disk_read_sector(dir_lba + i, sector);
-            struct fat_dir_entry* entries = (struct fat_dir_entry*)sector;
-            for (int j = 0; j < 512 / 32; j++) {
-                if (entries[j].name[0] == 0) break;
-                if ((uint8_t)entries[j].name[0] == 0xE5) continue;
-                
-                if (memcmp(entries[j].name, target, 11) == 0) {
-                    if (entries[j].attr & 0x10) { // Directory
-                        target_cluster = (entries[j].cluster_hi << 16) | entries[j].cluster_low;
-                        if (target_cluster == 0) target_cluster = root_cluster;
-                        found = true;
-                    } else {
-                        terminal_printf("Error: '%s' is not a directory.\n", path);
-                        kfree(sector);
-                        return;
-                    }
-                    break;
-                }
-            }
-            if (found) break;
+        uint32_t parent_cluster;
+        const char* fname;
+        int fname_len;
+        if (resolve_parent(path, root_cluster, data_start, fat_start, spc, bps, &parent_cluster, &fname, &fname_len) != 0) {
+            terminal_printf("Path not found: %s\n", path);
+            kfree(sector); return;
         }
         
-        if (!found) {
+        bool is_dir;
+        if (find_in_cluster(parent_cluster, fname, fname_len, data_start, fat_start, spc, bps, &target_cluster, NULL, NULL, NULL, &is_dir) != 0) {
             terminal_printf("Directory not found: %s\n", path);
             kfree(sector);
             return;
         }
+        if (!is_dir) {
+            terminal_printf("Not a directory: %s\n", path);
+            kfree(sector); return;
+        }
+    } else {
+        target_cluster = root_cluster;
     }
+    
+    if (target_cluster == 0) target_cluster = root_cluster;
 
     /* List contents of target_cluster */
     terminal_printf("Listing %s:\n", display_path);
@@ -542,30 +577,26 @@ extern "C" int fat32_read_directory(const char* path, fat_file_info_t* out, int 
     uint8_t spc = bpb->sectors_per_cluster;
     uint16_t bps = bpb->bytes_per_sector;
 
-    uint32_t target_cluster = root_cluster;
+    uint32_t target_cluster = 0;
 
     /* Resolve path (simplified) */
     if (path && path[0] && !(path[0] == '/' && path[1] == 0)) {
-        char target[11];
-        to_dos_name(path, target);
-        
-        uint32_t dir_lba = data_start + (root_cluster - 2) * spc;
-        bool found = false;
-        for (int i = 0; i < spc; i++) {
-            disk_read_sector(dir_lba + i, sector);
-            struct fat_dir_entry* entries = (struct fat_dir_entry*)sector;
-            for (int j = 0; j < 512 / 32; j++) {
-                if (memcmp(entries[j].name, target, 11) == 0 && (entries[j].attr & 0x10)) {
-                    target_cluster = (entries[j].cluster_hi << 16) | entries[j].cluster_low;
-                    if (target_cluster == 0) target_cluster = root_cluster;
-                    found = true;
-                    break;
-                }
-            }
-            if (found) break;
+        uint32_t parent_cluster;
+        const char* fname;
+        int fname_len;
+        if (resolve_parent(path, root_cluster, data_start, fat_start, spc, bps, &parent_cluster, &fname, &fname_len) != 0) {
+            kfree(sector); return 0;
         }
-        if (!found) { kfree(sector); return 0; }
+        bool is_dir;
+        if (find_in_cluster(parent_cluster, fname, fname_len, data_start, fat_start, spc, bps, &target_cluster, NULL, NULL, NULL, &is_dir) != 0) {
+            kfree(sector); return 0;
+        }
+        if (!is_dir) { kfree(sector); return 0; }
+    } else {
+        target_cluster = root_cluster;
     }
+    
+    if (target_cluster == 0) target_cluster = root_cluster;
 
     int count = 0;
     uint32_t current_cluster = target_cluster;
@@ -628,38 +659,25 @@ extern "C" int fat32_delete_file(const char* path) {
     uint8_t spc = bpb->sectors_per_cluster;
     uint16_t bps = bpb->bytes_per_sector;
 
-    char target[11];
-    to_dos_name(path, target);
+    uint32_t parent_cluster;
+    const char* fname;
+    int fname_len;
+    if (resolve_parent(path, root_cluster, data_start, fat_start, spc, bps, &parent_cluster, &fname, &fname_len) != 0) {
+        kfree(sector); return -1;
+    }
 
-    uint32_t dir_lba = data_start + (root_cluster - 2) * spc;
-    bool found = false;
     uint32_t file_cluster = 0;
-
-    /* Find and mark as deleted */
-    for (int i = 0; i < spc; i++) {
-        disk_read_sector(dir_lba + i, sector);
-        struct fat_dir_entry* entries = (struct fat_dir_entry*)sector;
-        
-        for (int j = 0; j < 512 / 32; j++) {
-            if (entries[j].name[0] == 0) break;
-            if ((uint8_t)entries[j].name[0] == 0xE5) continue;
-            
-            if (memcmp(entries[j].name, target, 11) == 0) {
-                file_cluster = (entries[j].cluster_hi << 16) | entries[j].cluster_low;
-                /* Mark deleted */
-                entries[j].name[0] = 0xE5;
-                disk_write_sector(dir_lba + i, sector);
-                found = true;
-                break;
-            }
-        }
-        if (found) break;
+    uint32_t entry_sector;
+    uint32_t entry_offset;
+    bool is_dir;
+    if (find_in_cluster(parent_cluster, fname, fname_len, data_start, fat_start, spc, bps, &file_cluster, NULL, &entry_sector, &entry_offset, &is_dir) != 0) {
+        kfree(sector); return -1;
     }
 
-    if (!found) {
-        kfree(sector);
-        return -1;
-    }
+    /* Mark deleted in directory entry */
+    disk_read_sector(entry_sector, sector);
+    ((struct fat_dir_entry*)sector)[entry_offset].name[0] = 0xE5;
+    disk_write_sector(entry_sector, sector);
 
     /* Free cluster chain */
     if (file_cluster != 0) {
@@ -708,34 +726,28 @@ extern "C" int fat32_create_directory(const char* path) {
     uint32_t root_cluster = bpb->root_cluster;
     uint8_t spc = bpb->sectors_per_cluster;
 
-    char target[11];
-    to_dos_name(path, target);
+    /* 2. Find the entry we just created */
+    uint32_t parent_cluster;
+    const char* fname;
+    int fname_len;
+    resolve_parent(path, root_cluster, data_start, fat_start, spc, bpb->bytes_per_sector, &parent_cluster, &fname, &fname_len);
 
-    /* 2. Find the entry we just created and change attr to DIRECTORY (0x10) */
-    uint32_t dir_lba = data_start + (root_cluster - 2) * spc;
     uint32_t dir_cluster = 0;
-    bool found = false;
-
-    for (int i = 0; i < spc; i++) {
-        disk_read_sector(dir_lba + i, sector);
-        struct fat_dir_entry* entries = (struct fat_dir_entry*)sector;
-        for (int j = 0; j < 512 / 32; j++) {
-            if (memcmp(entries[j].name, target, 11) == 0) {
-                entries[j].attr = 0x10; // Directory attribute
-                entries[j].size = 0;
-                dir_cluster = (entries[j].cluster_hi << 16) | entries[j].cluster_low;
-                disk_write_sector(dir_lba + i, sector);
-                found = true;
-                break;
-            }
-        }
-        if (found) break;
+    uint32_t entry_sector, entry_offset;
+    bool is_dir;
+    
+    if (find_in_cluster(parent_cluster, fname, fname_len, data_start, fat_start, spc, bpb->bytes_per_sector, &dir_cluster, NULL, &entry_sector, &entry_offset, &is_dir) != 0) {
+        kfree(sector); return -1;
     }
 
-    if (!found || dir_cluster == 0) {
-        kfree(sector);
-        return -1;
-    }
+    /* Update attribute to DIRECTORY */
+    disk_read_sector(entry_sector, sector);
+    struct fat_dir_entry* entry = &((struct fat_dir_entry*)sector)[entry_offset];
+    entry->attr = 0x10;
+    entry->size = 0;
+    disk_write_sector(entry_sector, sector);
+
+    if (dir_cluster == 0) { kfree(sector); return -1; }
 
     /* 3. Initialize the new directory cluster with . and .. */
     uint32_t cluster_lba = data_start + (dir_cluster - 2) * spc;
@@ -788,31 +800,18 @@ extern "C" int fat32_directory_exists(const char* path) {
     uint32_t root_cluster = bpb->root_cluster;
     uint8_t spc = bpb->sectors_per_cluster;
 
-    char target[11];
-    to_dos_name(path, target);
-
-    uint32_t dir_lba = data_start + (root_cluster - 2) * spc;
-    bool found = false;
-
-    for (int i = 0; i < spc; i++) {
-        disk_read_sector(dir_lba + i, sector);
-        struct fat_dir_entry* entries = (struct fat_dir_entry*)sector;
-        for (int j = 0; j < 512 / 32; j++) {
-            if (entries[j].name[0] == 0) break;
-            if ((uint8_t)entries[j].name[0] == 0xE5) continue;
-            
-            if (memcmp(entries[j].name, target, 11) == 0) {
-                if (entries[j].attr & 0x10) { // Directory
-                    found = true;
-                }
-                break;
-            }
-        }
-        if (found) break;
+    uint32_t parent_cluster;
+    const char* fname;
+    int fname_len;
+    if (resolve_parent(path, root_cluster, data_start, fat_start, spc, bpb->bytes_per_sector, &parent_cluster, &fname, &fname_len) != 0) {
+        kfree(sector); return 0;
     }
-
+    
+    bool is_dir;
+    int res = find_in_cluster(parent_cluster, fname, fname_len, data_start, fat_start, spc, bpb->bytes_per_sector, NULL, NULL, NULL, NULL, &is_dir);
+    
     kfree(sector);
-    return found ? 1 : 0;
+    return (res == 0 && is_dir) ? 1 : 0;
 }
 
 extern "C" int fat32_format(uint32_t lba, uint32_t sector_count, const char* label) {
@@ -923,7 +922,7 @@ extern "C" int fat32_format(uint32_t lba, uint32_t sector_count, const char* lab
     uint32_t data_start = lba + reserved_sectors + (fats_count * fat_sectors);
     /* Cluster 2 is at offset 0 from data_start */
     memset(sector, 0, 512);
-    for (int i = 0; i < sectors_per_cluster; i++) {
+    for (uint32_t i = 0; i < sectors_per_cluster; i++) {
         if (disk_write_sector(data_start + i, sector) != 0) serial("[FAT] Warning: Failed to write RootDir sector %d\n", i);
     }
     
@@ -948,35 +947,20 @@ extern "C" int32_t fat32_get_file_size(const char* path) {
     uint32_t root_cluster = bpb->root_cluster;
     uint8_t spc = bpb->sectors_per_cluster;
 
-    /* 2. Find File */
-    char target[11];
-    to_dos_name(path, target);
-
-    uint32_t current_cluster = root_cluster;
-    uint32_t file_size = 0;
-    bool found = false;
-
-    /* Scan root dir (simplified) */
-    uint32_t lba = data_start + (current_cluster - 2) * spc;
-    for (int i = 0; i < spc; i++) {
-        disk_read_sector(lba + i, sector);
-        struct fat_dir_entry* entries = (struct fat_dir_entry*)sector;
-        for (int j = 0; j < 512 / 32; j++) {
-            if (entries[j].name[0] == 0) break;
-            if ((uint8_t)entries[j].name[0] == 0xE5) continue;
-            if (entries[j].attr & 0x0F) continue;
-
-            if (memcmp(entries[j].name, target, 11) == 0) {
-                file_size = entries[j].size;
-                found = true;
-                break;
-            }
-        }
-        if (found) break;
+    /* 2. Resolve Path */
+    uint32_t parent_cluster;
+    const char* fname;
+    int fname_len;
+    if (resolve_parent(path, root_cluster, data_start, fat_start, spc, bpb->bytes_per_sector, &parent_cluster, &fname, &fname_len) != 0) {
+        kfree(sector); return -1;
     }
 
+    uint32_t file_size = 0;
+    bool is_dir;
+    int res = find_in_cluster(parent_cluster, fname, fname_len, data_start, fat_start, spc, bpb->bytes_per_sector, NULL, &file_size, NULL, NULL, &is_dir);
+
     kfree(sector);
-    return found ? (int32_t)file_size : -1;
+    return (res == 0 && !is_dir) ? (int32_t)file_size : -1;
 }
 
 /* Încearcă să monteze automat prima partiție FAT găsită */

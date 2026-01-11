@@ -505,6 +505,10 @@ extern "C" int cmd_launch(int argc, char** argv) {
     window_t* drag_win = NULL;
     int drag_off_x = 0;
     int drag_off_y = 0;
+    
+    /* State for Resizing */
+    window_t* resize_win = NULL;
+    int resize_mode = 0; /* 0=None, 1=Right, 2=Bottom, 3=Corner */
 
     while (is_gui_running) {
         /* Update Apps */
@@ -544,15 +548,35 @@ extern "C" int cmd_launch(int argc, char** argv) {
             /* Mouse Event Handling */
             if (ev.type == INPUT_MOUSE_MOVE || ev.type == INPUT_MOUSE_CLICK) {
                 
+                /* Handle Resizing Logic */
+                if (resize_win && ev.type == INPUT_MOUSE_MOVE) {
+                    if (resize_mode == 1 || resize_mode == 3) { /* Width */
+                        int new_w = ev.mouse_x - resize_win->x;
+                        if (new_w > 100) resize_win->w = new_w;
+                    }
+                    if (resize_mode == 2 || resize_mode == 3) { /* Height */
+                        int new_h = ev.mouse_y - resize_win->y;
+                        if (new_h > 50) resize_win->h = new_h;
+                    }
+                    wm_mark_dirty();
+                }
+
                 /* Handle Dragging Logic */
-                if (drag_win && ev.type == INPUT_MOUSE_MOVE) {
+                else if (drag_win && ev.type == INPUT_MOUSE_MOVE) {
                     drag_win->x = ev.mouse_x - drag_off_x;
                     drag_win->y = ev.mouse_y - drag_off_y;
+                    
+                    /* Snap to top for maximize hint? (Optional) */
+                    if (drag_win->y < 0) drag_win->y = 0;
+                    
                     wm_mark_dirty();
                 }
 
                 /* 1. Find Window Under Mouse (Top-most) if not dragging */
-                window_t* target = drag_win ? drag_win : wm_find_window_at(ev.mouse_x, ev.mouse_y);
+                window_t* target = NULL;
+                if (resize_win) target = resize_win;
+                else if (drag_win) target = drag_win;
+                else target = wm_find_window_at(ev.mouse_x, ev.mouse_y);
 
                 /* 2. Handle Focus & Drag Start on Click */
                 if (ev.type == INPUT_MOUSE_CLICK) {

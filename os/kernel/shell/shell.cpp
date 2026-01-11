@@ -392,6 +392,18 @@ void shell_create_window() {
         fly_draw_rect_outline(s, bx, by, 16, 16, 0xFFFFFFFF);
         fly_draw_text(s, bx + 4, by, "X", 0xFF000000);
         
+        /* Maximize Button [O] */
+        bx -= 20;
+        fly_draw_rect_fill(s, bx, by, 16, 16, 0xFFC0C0C0);
+        fly_draw_rect_outline(s, bx, by, 16, 16, 0xFFFFFFFF);
+        fly_draw_rect_outline(s, bx + 3, by + 3, 10, 10, 0xFF000000); /* Box icon */
+
+        /* Minimize Button [_] */
+        bx -= 20;
+        fly_draw_rect_fill(s, bx, by, 16, 16, 0xFFC0C0C0);
+        fly_draw_rect_outline(s, bx, by, 16, 16, 0xFFFFFFFF);
+        fly_draw_rect_fill(s, bx + 3, by + 10, 10, 3, 0xFF000000); /* Line icon */
+
         shell_win = wm_create_window(s, 50, 50);
         
         terminal_set_surface(s);

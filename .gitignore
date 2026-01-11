@@ -4,3 +4,4 @@ build
 os/build
 hdd.img
 git.txt
+.petal-test

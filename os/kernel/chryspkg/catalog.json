@@ -1,0 +1,15 @@
+{
+  "catalog_version": 1,
+  "repository": "https://chrys-pkg.vercel.app",
+
+  "apps": [
+    {
+      "name": "clickme",
+      "version": "1.0",
+      "file": "clickme-1.0.petal",
+      "type": "gui",
+      "entry": "/usr/bin/clickme",
+      "description": "First FlyUI test app"
+    }
+  ]
+}

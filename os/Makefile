@@ -131,6 +131,8 @@ OBJS = \
 	$(BUILD)/cmds/net.o \
 	$(BUILD)/cmds/get.o \
 	$(BUILD)/cmds/curl.o \
+	$(BUILD)/cmds/pkg.o \
+	$(BUILD)/chryspkg/chryspkg.o \
 	$(BUILD)/hardware/pci.o \
 	$(BUILD)/hardware/acpi.o \
 	$(BUILD)/arch/interrupts.o \
@@ -326,6 +328,7 @@ dirs: $(BUILD)
 	mkdir -p ${BUILD}/ethernet
 	mkdir -p ${BUILD}/ethernet/drivers
 	mkdir -p ${BUILD}/crypto
+	mkdir -p ${BUILD}/chryspkg
 
 
 
@@ -677,6 +680,12 @@ $(BUILD)/cmds/get.o: kernel/cmds/get.cpp | dirs
 $(BUILD)/cmds/curl.o: kernel/cmds/curl.cpp | dirs
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
+$(BUILD)/cmds/pkg.o: kernel/cmds/pkg.cpp | dirs
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+$(BUILD)/chryspkg/chryspkg.o: kernel/chryspkg/chryspkg.c | dirs
+	$(CC) $(CFLAGS) -c $< -o $@
+
 $(BUILD)/hardware/pci.o: kernel/hardware/pci.cpp
 	@mkdir -p $(BUILD)/hardware
 	$(CXX) $(CXXFLAGS) -c $< -o $@
@@ -967,6 +976,8 @@ $(ISO)/boot/$(KERNEL): $(OBJS) | dirs
 # -------------------------
 
 iso: all
+	@mkdir -p $(ISO)/system/pkg/installed
+	@cp kernel/chryspkg/catalog.json $(ISO)/system/pkg/catalog.json
 	grub-mkrescue -o chrysalis.iso $(ISO)
 
 run: iso
