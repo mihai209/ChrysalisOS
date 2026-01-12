@@ -28,7 +28,7 @@ fly_widget_t* fly_label_create(const char* text) {
     }
     
     w->on_draw = label_draw;
-    w->fg_color = FLY_COLOR_TEXT;
+    w->fg_color = theme_get()->color_text;
     w->w = strlen(text) * 8;
     w->h = 16;
     

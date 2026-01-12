@@ -2,6 +2,7 @@
 #include "../ui/wm/wm.h"
 #include "../ui/flyui/draw.h"
 #include "app_manager.h"
+#include "../ui/flyui/theme.h"
 
 static window_t* demo_win = NULL;
 static int angle = 0;
@@ -63,13 +64,20 @@ static void rotate_y(int angle, int* x, int* z) {
 
 void demo3d_app_create(void) {
     if (demo_win) return;
+    fly_theme_t* th = theme_get();
     surface_t* s = surface_create(300, 300);
     surface_clear(s, 0xFF000000);
 
-    fly_draw_rect_fill(s, 0, 0, 300, 24, 0xFF800000);
-    fly_draw_text(s, 5, 4, "3D Demo", 0xFFFFFFFF);
-    fly_draw_rect_fill(s, 280, 4, 16, 16, 0xFFC0C0C0);
-    fly_draw_text(s, 284, 4, "X", 0xFF000000);
+    fly_draw_rect_fill(s, 0, 0, 300, 24, th->win_title_active_bg);
+    fly_draw_text(s, 5, 4, "3D Demo", th->win_title_active_fg);
+    
+    /* Close Button */
+    fly_draw_rect_fill(s, 280, 4, 16, 16, th->win_bg);
+    fly_draw_rect_outline(s, 280, 4, 16, 16, th->color_lo_2);
+    fly_draw_text(s, 284, 4, "X", th->color_text);
+    
+    /* Border */
+    fly_draw_rect_fill(s, 0, 24, 300, 1, th->color_lo_1);
 
     demo_win = wm_create_window(s, 200, 100);
     app_register("3D Demo", demo_win);
@@ -98,7 +106,7 @@ void demo3d_app_update(void) {
     
     surface_t* s = demo_win->surface;
     /* Clear content area */
-    fly_draw_rect_fill(s, 0, 24, 300, 276, 0xFF000000);
+    fly_draw_rect_fill(s, 0, 25, 300, 275, 0xFF000000);
     
     angle = (angle + 2) % 360;
     

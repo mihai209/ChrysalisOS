@@ -11,6 +11,7 @@
 #include "../ui/wm/wm.h"
 #include "../video/surface.h"
 #include "../ui/flyui/draw.h"
+#include "../ui/flyui/theme.h"
 
 /* Configuration */
 #define SHELL_BUF_SIZE 256
@@ -363,6 +364,25 @@ static void shell_autocomplete() {
 
 static window_t* shell_win = NULL;
 
+static void fly_draw_line(surface_t* surf, int x0, int y0, int x1, int y1, uint32_t color) {
+    int dx = (x1 > x0) ? (x1 - x0) : (x0 - x1);
+    int sx = (x0 < x1) ? 1 : -1;
+    int dy = (y1 > y0) ? -(y1 - y0) : -(y0 - y1);
+    int sy = (y0 < y1) ? 1 : -1;
+    int err = dx + dy;
+    int e2;
+
+    for (;;) {
+        if (x0 >= 0 && x0 < (int)surf->width && y0 >= 0 && y0 < (int)surf->height) {
+            surf->pixels[y0 * surf->width + x0] = color;
+        }
+        if (x0 == x1 && y0 == y1) break;
+        e2 = 2 * err;
+        if (e2 >= dy) { err += dy; x0 += sx; }
+        if (e2 <= dx) { err += dx; y0 += sy; }
+    }
+}
+
 void shell_init() {
     /* Text Mode Init Only */
     shell_init_context(0);
@@ -372,30 +392,36 @@ void shell_init() {
 }
 
 void shell_create_window() {
+    fly_theme_t* th = theme_get();
     int win_w = 640;
-    int win_h = 400 + 24; /* +24 for title bar */
+    int win_h = 400 + 25; /* +24 for title bar + 1 border */
     surface_t* s = surface_create(win_w, win_h);
     if (s) {
-        surface_clear(s, 0xFFFFFFFF); /* White background */
+        surface_clear(s, th->win_bg); /* Window background */
         
         /* Draw Title Bar  */
-        fly_draw_rect_fill(s, 0, 0, win_w, 24, 0xFF000080); /* Classic Blue */
+        fly_draw_rect_fill(s, 0, 0, win_w, 24, th->win_title_active_bg);
         const char* title = "Chrysalis OS : Konsole";
         int title_len = strlen(title);
         int title_x = (win_w - (title_len * 8)) / 2;
-        fly_draw_text(s, title_x, 4, title, 0xFFFFFFFF);
+        fly_draw_text(s, title_x, 4, title, th->win_title_active_fg);
         
         /* Close Button [X] */
         int bx = win_w - 20;
         int by = 4;
-        fly_draw_rect_fill(s, bx, by, 16, 16, 0xFFC0C0C0); /* Classic Gray */
-        fly_draw_rect_outline(s, bx, by, 16, 16, 0xFFFFFFFF);
-        fly_draw_text(s, bx + 4, by, "X", 0xFFFFFFFF);
+        fly_draw_rect_fill(s, bx, by, 16, 16, th->win_bg);
+        fly_draw_rect_outline(s, bx, by, 16, 16, th->color_lo_2);
+        fly_draw_line(s, bx, by, bx+15, by, th->color_hi_1);
+        fly_draw_line(s, bx, by, bx, by+15, th->color_hi_1);
+        fly_draw_text(s, bx + 4, by, "X", th->color_text);
+
+        /* Border between title bar and content */
+        fly_draw_rect_fill(s, 0, 24, win_w, 1, th->color_lo_1);
 
         shell_win = wm_create_window(s, 50, 50);
         
         terminal_set_surface(s);
-        terminal_set_rect(0, 24, win_w, 400);
+        terminal_set_rect(0, 25, win_w, 400);
         
         serial("[SHELL] Window created and terminal attached.\n");
     } else {

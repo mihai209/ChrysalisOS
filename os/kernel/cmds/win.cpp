@@ -23,11 +23,6 @@
 #include "../include/stdio.h"
 #include "../mem/kmalloc.h"
 
-/* Classic Theme Colors */
-#define THEME_GRAY   0xFFC0C0C0
-#define THEME_WHITE  0xFFFFFFFF
-#define THEME_BLACK  0xFF000000
-
 extern "C" void serial(const char *fmt, ...);
 
 /* Program Manager State */
@@ -144,17 +139,44 @@ static void draw_icon_graphic(surface_t* s, int x, int y, int type) {
     }
 }
 
+static void fly_draw_line(surface_t* surf, int x0, int y0, int x1, int y1, uint32_t color) {
+    int dx = (x1 > x0) ? (x1 - x0) : (x0 - x1);
+    int sx = (x0 < x1) ? 1 : -1;
+    int dy = (y1 > y0) ? -(y1 - y0) : -(y0 - y1);
+    int sy = (y0 < y1) ? 1 : -1;
+    int err = dx + dy;
+    int e2;
+
+    for (;;) {
+        if (x0 >= 0 && x0 < (int)surf->width && y0 >= 0 && y0 < (int)surf->height) {
+            surf->pixels[y0 * surf->width + x0] = color;
+        }
+        if (x0 == x1 && y0 == y1) break;
+        e2 = 2 * err;
+        if (e2 >= dy) { err += dy; x0 += sx; }
+        if (e2 <= dx) { err += dx; y0 += sy; }
+    }
+}
+
 static void taskbar_btn_draw(fly_widget_t* w, surface_t* s, int x, int y) {
     icon_btn_data_t* d = (icon_btn_data_t*)w->internal_data;
     uint32_t bg = w->bg_color;
+    fly_theme_t* th = theme_get();
     
-    if (d && d->pressed) bg = 0xFF808080; /* Darker gray on press */
+    /* Dotted pattern for active taskbar button? For now just darker */
+    if (d && d->pressed) bg = th->color_hi_1; /* Inverted look */
     
     fly_draw_rect_fill(s, x, y, w->w, w->h, bg);
-    fly_draw_rect_outline(s, x, y, w->w, w->h, 0xFF000000);
-    if (!d->pressed) {
-        fly_draw_rect_outline(s, x, y, w->w-1, w->h-1, 0xFFFFFFFF);
-    }
+    
+    /* 3D Bevel for Taskbar Buttons */
+    uint32_t c_tl = d->pressed ? th->color_lo_1 : th->color_hi_1;
+    uint32_t c_br = d->pressed ? th->color_hi_1 : th->color_lo_1;
+    
+    fly_draw_line(s, x, y, x+w->w-1, y, c_tl);
+    fly_draw_line(s, x, y, x, y+w->h-1, c_tl);
+    fly_draw_line(s, x, y+w->h-1, x+w->w-1, y+w->h-1, c_br);
+    fly_draw_line(s, x+w->w-1, y, x+w->w-1, y+w->h-1, c_br);
+
     
     /* Draw Icon Centered */
     draw_icon_graphic(s, x + (w->w - 16)/2, y + (w->h - 16)/2, d->icon_type);
@@ -461,15 +483,20 @@ static bool run_btn_event(fly_widget_t* w, fly_event_t* e) {
 static void create_exit_popup() {
     if (popup_win) return;
 
+    fly_theme_t* th = theme_get();
     int w = 320;
     int h = 140;
     surface_t* s = surface_create(w, h);
     if (!s) return;
-    surface_clear(s, THEME_GRAY);
+    surface_clear(s, th->win_bg);
+    
+    /* Window Border */
+    fly_draw_rect_outline(s, 0, 0, w, h, th->color_hi_1);
+    fly_draw_rect_outline(s, 0, 0, w-1, h-1, th->color_lo_2);
 
     popup_ctx = flyui_init(s);
     fly_widget_t* root = fly_panel_create(w, h);
-    root->bg_color = THEME_GRAY;
+    root->bg_color = th->win_bg;
     flyui_set_root(popup_ctx, root);
 
     /* Title/Question */
@@ -521,15 +548,20 @@ static bool net_popup_close_event(fly_widget_t* w, fly_event_t* e) {
 static void create_net_popup() {
     if (net_win) return;
 
+    fly_theme_t* th = theme_get();
     int w = 250;
     int h = 180;
     surface_t* s = surface_create(w, h);
     if (!s) return;
-    surface_clear(s, THEME_GRAY);
+    surface_clear(s, th->win_bg);
+    
+    /* Border */
+    fly_draw_rect_outline(s, 0, 0, w, h, th->color_hi_1);
+    fly_draw_rect_outline(s, 0, 0, w-1, h-1, th->color_lo_2);
 
     net_ctx = flyui_init(s);
     fly_widget_t* root = fly_panel_create(w, h);
-    root->bg_color = THEME_GRAY;
+    root->bg_color = th->win_bg;
     flyui_set_root(net_ctx, root);
 
     /* Title */
@@ -635,19 +667,20 @@ static void create_start_menu() {
         return;
     }
 
+    fly_theme_t* th = theme_get();
     int w = 150;
     int h = 300;
     surface_t* s = surface_create(w, h);
     if (!s) return;
-    surface_clear(s, THEME_GRAY);
+    surface_clear(s, th->win_bg);
     
     /* Draw 3D border */
-    fly_draw_rect_outline(s, 0, 0, w, h, 0xFFFFFFFF);
-    fly_draw_rect_outline(s, 0, 0, w-1, h-1, 0xFF000000);
+    fly_draw_rect_outline(s, 0, 0, w, h, th->color_hi_1);
+    fly_draw_rect_outline(s, 0, 0, w-1, h-1, th->color_lo_2);
 
     start_menu_ctx = flyui_init(s);
     fly_widget_t* root = fly_panel_create(w, h);
-    root->bg_color = THEME_GRAY;
+    root->bg_color = th->win_bg;
     flyui_set_root(start_menu_ctx, root);
     
     /* Side bar */
@@ -706,7 +739,7 @@ static fly_widget_t* create_taskbar_btn(int x, int y, int w, int h, int icon, bo
     d->event_cb = cb;
     
     btn->internal_data = d;
-    btn->bg_color = THEME_GRAY;
+    btn->bg_color = theme_get()->win_bg;
     btn->on_draw = taskbar_btn_draw;
     
     /* Generic Event Wrapper */
@@ -730,6 +763,7 @@ static void create_taskbar() {
     gpu_device_t* gpu = gpu_get_primary();
     if (!gpu) return;
 
+    fly_theme_t* th = theme_get();
     int w = gpu->width;
     int h = 32; /* Taskbar height */
     
@@ -738,14 +772,17 @@ static void create_taskbar() {
     if (!s) return;
     
     /* Gray background */
-    surface_clear(s, THEME_GRAY);
+    surface_clear(s, th->win_bg);
+    
+    /* Top highlight line */
+    fly_draw_line(s, 0, 0, w, 0, th->color_hi_1);
 
     /* 2. Init FlyUI */
     taskbar_ctx = flyui_init(s);
     
     /* 3. Create Widgets */
     fly_widget_t* root = fly_panel_create(w, h);
-    root->bg_color = THEME_GRAY;
+    root->bg_color = th->win_bg;
     flyui_set_root(taskbar_ctx, root);
 
     int x = 0;
@@ -807,7 +844,7 @@ static void create_taskbar() {
     fly_widget_t* sys_clock = fly_panel_create(100, h);
     sys_clock->x = w - 105; /* 5px margin from right */
     sys_clock->y = 0;
-    sys_clock->bg_color = THEME_GRAY;
+    sys_clock->bg_color = th->win_bg;
     sys_clock->on_draw = taskbar_clock_draw;
     fly_widget_add(root, sys_clock);
 
@@ -844,6 +881,7 @@ extern "C" int cmd_launch(int argc, char** argv) {
     terminal_set_rendering(false);
 
     /* 2. Initialize GUI Subsystems */
+    theme_init();
     compositor_init();
     wm_init();
     app_manager_init();

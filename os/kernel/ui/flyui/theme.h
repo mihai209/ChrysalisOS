@@ -5,11 +5,25 @@
 extern "C" {
 #endif
 
-#define FLY_COLOR_BG        0xFFFFFFFF  /* White Window Background */
-#define FLY_COLOR_PANEL     0xFFFFFFFF  /* White Panels */
-#define FLY_COLOR_BUTTON    0xFFFFFFFF  /* White Buttons */
-#define FLY_COLOR_TEXT      0xFF000000  /* Black Text */
-#define FLY_COLOR_BORDER    0xFF000000  /* Black Borders */
+typedef struct {
+    uint32_t win_bg;
+    uint32_t win_title_active_bg;
+    uint32_t win_title_active_fg;
+    uint32_t win_title_inactive_bg;
+    uint32_t win_title_inactive_fg;
+    
+    uint32_t color_hi_1; /* White */
+    uint32_t color_lo_1; /* Dark Gray */
+    uint32_t color_lo_2; /* Black */
+    uint32_t color_text;
+    
+    int border_width;
+    int title_height;
+    int padding;
+} fly_theme_t;
+
+void theme_init(void);
+fly_theme_t* theme_get(void);
 
 #ifdef __cplusplus
 }

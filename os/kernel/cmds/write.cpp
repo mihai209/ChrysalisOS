@@ -8,6 +8,8 @@
 #include "../mem/kmalloc.h"
 #include "../input/input.h"
 #include "fat.h"
+#include "../ui/wm/wm.h"
+#include "../shell/shell.h"
 
 /* FAT32 Driver API (External) */
 extern "C" int fat32_create_file(const char* path, const void* data, uint32_t size);
@@ -67,6 +69,8 @@ extern "C" int cmd_write(int argc, char** argv) {
     bool save = false;
 
     while (running) {
+        bool is_gui = shell_is_window_active();
+
         if (input_pop(&ev)) {
             if (ev.type == INPUT_KEYBOARD && ev.pressed) {
                 char c = (char)ev.keycode;
@@ -103,6 +107,11 @@ extern "C" int cmd_write(int argc, char** argv) {
                         terminal_putchar(c);
                     }
                 }
+            }
+
+            if (is_gui) {
+                wm_mark_dirty();
+                wm_render();
             }
         } else {
             /* Wait for interrupt to avoid burning CPU */

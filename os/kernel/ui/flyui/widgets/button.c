@@ -11,18 +11,64 @@ typedef struct {
     bool pressed;
 } button_data_t;
 
+static void fly_draw_line(surface_t* surf, int x0, int y0, int x1, int y1, uint32_t color) {
+    int dx = (x1 > x0) ? (x1 - x0) : (x0 - x1);
+    int sx = (x0 < x1) ? 1 : -1;
+    int dy = (y1 > y0) ? -(y1 - y0) : -(y0 - y1);
+    int sy = (y0 < y1) ? 1 : -1;
+    int err = dx + dy;
+    int e2;
+
+    for (;;) {
+        if (x0 >= 0 && x0 < (int)surf->width && y0 >= 0 && y0 < (int)surf->height) {
+            surf->pixels[y0 * surf->width + x0] = color;
+        }
+        if (x0 == x1 && y0 == y1) break;
+        e2 = 2 * err;
+        if (e2 >= dy) { err += dy; x0 += sx; }
+        if (e2 <= dx) { err += dx; y0 += sy; }
+    }
+}
+
 static void button_draw(fly_widget_t* w, surface_t* surf, int x, int y) {
     button_data_t* d = (button_data_t*)w->internal_data;
     uint32_t bg = w->bg_color;
     uint32_t fg = w->fg_color;
+    fly_theme_t* th = theme_get();
     
-    if (d && d->pressed) { bg = 0xFF000000; fg = 0xFFFFFFFF; } /* Invert on press */
+    /* 3D Bevel Logic */
+    uint32_t c_tl = th->color_hi_1;
+    uint32_t c_br = th->color_lo_2;
+    uint32_t c_br_inner = th->color_lo_1;
 
-    /* Classic Style: Gray background */
+    if (d && d->pressed) { 
+        /* Invert bevels for pressed state */
+        c_tl = th->color_lo_2;
+        c_br = th->color_hi_1;
+        c_br_inner = th->color_lo_1;
+        /* Shift content slightly */
+        x += 1; y += 1;
+    }
+
     fly_draw_rect_fill(surf, x, y, w->w, w->h, bg);
+    
+    /* Outer Border */
     fly_draw_rect_outline(surf, x, y, w->w, w->h, 0xFF000000);
-    /* Double border for "3D" effect */
-    fly_draw_rect_outline(surf, x + 2, y + 2, w->w - 4, w->h - 4, FLY_COLOR_BORDER);
+    
+    /* Bevels */
+    /* Top & Left (Highlight) */
+    fly_draw_line(surf, x+1, y+1, x+w->w-2, y+1, c_tl);
+    fly_draw_line(surf, x+1, y+1, x+1, y+w->h-2, c_tl);
+    
+    /* Bottom & Right (Shadow) */
+    fly_draw_line(surf, x+1, y+w->h-2, x+w->w-2, y+w->h-2, c_br);
+    fly_draw_line(surf, x+w->w-2, y+1, x+w->w-2, y+w->h-2, c_br);
+    
+    /* Inner Shadow (Bottom/Right only for classic feel) */
+    if (!d || !d->pressed) {
+        fly_draw_line(surf, x+2, y+w->h-3, x+w->w-3, y+w->h-3, c_br_inner);
+        fly_draw_line(surf, x+w->w-3, y+2, x+w->w-3, y+w->h-3, c_br_inner);
+    }
     
     /* Draw text centered */
     if (d && d->text) {
