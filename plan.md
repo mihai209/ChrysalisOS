@@ -1,190 +1,259 @@
-# Chrysalis OS — Development Plan
+# Chrysalis OS — Development Plan (Reorganized)
 
-This document describes the long-term technical roadmap of **Chrysalis OS**.
-Each level represents a meaningful evolutionary step, from a minimal kernel to a fully usable operating system.
+**Chrysalis OS** is a monolithic, educational, desktop-capable operating system designed to evolve from bare metal to a usable, networked system with a native GUI and ecosystem.
 
 Legend:
-✅ = implemented
-🔲 = planned
-[N] = optional / nice-to-have
+✅ implemented 🔲 planned ☑️ partial [N] optional / nice-to-have
 
 ---
 
-## 🟢 LEVEL 1 — Foundation (Minimal Working Kernel)
+## 🟢 PHASE 1 — Core Kernel Foundation
 
-> Goal: Boot reliably, handle interrupts, and interact with basic hardware.
+> **Goal:** The kernel boots, survives, and talks to hardware.
 
-| Status | Component         | Notes              |
-| ------ | ----------------- | ------------------ |
-| ✅      | GDT               | Correct            |
-| ✅      | IDT               | OK                 |
-| ✅      | ISR / IRQ         | Stable             |
-| ✅      | PIC 8259          | Properly remapped  |
-| ✅      | PIT (Timer)       | Functional         |
-| ✅      | Keyboard (IRQ1)   | Working            |
-| ✅      | VGA Text Terminal | Stable             |
-| ✅      | Serial COM1       | Stable (debugging) |
-| ✅      | CMOS / RTC        | Simple, useful     |
-| ✅      | PC Speaker        | Simple + fun       |
+### CPU & Interrupts
 
-**Why this level matters:**
-Without this layer, nothing else is possible. This is where the kernel proves it can *exist*.
+| Status | Component        |
+| ------ | ---------------- |
+| ✅      | GDT              |
+| ✅      | IDT              |
+| ✅      | ISR / IRQ        |
+| ✅      | PIC 8259         |
+| ✅      | APIC / IOAPIC    |
+| ✅      | SMP (multi-core) |
 
----
+### Timing & Low-level Devices
 
-## 🟡 LEVEL 2 — Input & Timing
+| Status | Component  |
+| ------ | ---------- |
+| ✅      | PIT        |
+| ✅      | HPET       |
+| ✅      | CMOS / RTC |
+| ✅      | PC Speaker |
 
-> Goal: Clean input handling and predictable timing — quality-of-life for the kernel.
+### Debug & Output
 
-| Status | Component         | Why it matters         |
-| ------ | ----------------- | ---------------------- |
-| ✅      | PS/2 Mouse        | IRQ12                  |
-| ✅      | Keyboard Buffer   | Correct input handling |
-| ✅      | Keymap (US / RO)  | Extensible             |
-| ✅      | Timer Abstraction | `sleep(ms)`            |
-| ✅      | Uptime / Ticks    | System stability       |
-| 🔲     | Calibrated Delay  | Needed for drivers     |
-| ✅      | Event Queue       | GUI foundation         |
+| Status | Component        |
+| ------ | ---------------- |
+| ✅      | Serial COM1      |
+| ✅      | VGA Text Console |
 
-**Key idea:**
-Move from “hardware reacts immediately” to **structured, buffered, event-driven input**.
+**Result:**
+The kernel is *alive*, debuggable, and stable.
 
 ---
 
-## 🔵 LEVEL 3 — Storage (First Big Leap)
+## 🟡 PHASE 2 — Input, Events & Timing Model
 
-> Goal: Persistent data. The OS starts to *remember*.
+> **Goal:** Structured, event-driven input usable by both shell and GUI.
 
-| Status | Component             | Comment              |
-| ------ | --------------------- | -------------------- |
-| ✅      | ATA PIO               | Ideal starting point |
-| ✅      | HDD Detection         | IDENTIFY command     |
-| ✅      | Sector Read           | Major milestone      |
-| ✅      | Sector Write          | Corruption risk      |
-| [N]    | Simple Cache          | Performance          |
-| ✅      | Partition Table (MBR) | Required             |
-| ✅      | FAT12 / FAT16         | Easy                 |
-| ✅      | FAT32                 | Harder               |
-| ✅      | VFS                   | Clean architecture   |
+| Status | Component                       |
+| ------ | ------------------------------- |
+| ✅      | Keyboard (IRQ1)                 |
+| ✅      | Keyboard Buffer                 |
+| ✅      | Keymaps (US / RO)               |
+| ✅      | PS/2 Mouse (IRQ12)              |
+| ✅      | Event Queue                     |
+| ✅      | Timer Abstraction (`sleep(ms)`) |
+| 🔲     | Calibrated Delay Loop           |
 
-**Why this changes everything:**
-With storage + VFS, user programs and real tools become possible.
+**Result:**
+Hardware input → event system → consumers (shell / GUI).
 
 ---
 
-## 🟣 LEVEL 4 — Memory Management
+## 🔵 PHASE 3 — Memory & Address Space
 
-> Goal: Isolation, safety, and scalability.
-
-| Status | Component               | Notes        |
-| ------ | ----------------------- | ------------ |
-| ✅      | Physical Memory Manager | Bitmap       |
-| ✅      | x86 Paging              | Game changer |
-| ✅      | Virtual Memory          | Isolation    |
-| ✅      | Kernel Heap (`kmalloc`) | Mandatory    |
-| ✅      | Slab / Buddy Allocator  | Optimization |
-| ✅      | User Memory Isolation   | Security     |
-
-**Key concept:**
-Memory bugs stop being fatal, and multitasking becomes realistic.
-
----
-
-## 🟠 LEVEL 5 — Processes & Multitasking
-
-> Goal: The OS becomes a *real* operating system.
-
-| Status | Component             | Notes              |
-| ------ | --------------------- | ------------------ |
-| ✅      | Task Structure        | Core               |
-| ✅      | Context Switch        | Hard but rewarding |
-| ✅      | Round-Robin Scheduler | Simple             |
-| ✅      | Kernel Threads        |                    |
-| ✅      | User Mode             | Ring 3             |
-| ✅      | Syscalls (`int 0x80`) |                    |
-| ✅      | ELF Loader            |                    |
-| ✅     | `exec()`              | done              |
-
-**This is the turning point:**
-From a kernel → **a multi-process OS**.
-
----
-
-## 🔴 LEVEL 6 — Advanced Hardware
-
-> Goal: Modern hardware support and scalability.
-
-| Status | Component         |
-| ------ | ----------------- |
-| ✅      | PCI Bus           |
-| ✅     | ACPI              |
-| ✅     | APIC / IOAPIC     |
-| ✅     | SMP (Multi-core)  |
-| ✅     | HPET              |
-| ✅     | USB               |
-| ✅     | AHCI              |
-| ✅     | VESA Framebuffer  |
-| ✅     | Basic GPU Support |
-
-**Optional but impressive.**
-This level separates hobby kernels from serious systems.
-
----
-
-## 🟤 LEVEL 7 — UX & Tools
-
-> Goal: Usability, developer comfort, and productivity.
-
-| Status | Component         |
-| ------ | ----------------- |
-| ✅     | Advanced Shell    |
-| ✅     | Piping            |
-| ✅    | Scrollback        |
-| ✅     | Scripting         |
-| ✅     | Virtual Terminals |
-| ✅     | Cursor            |
-| ✅      | Colors            |
-| ✅     | Text Editor       |
-| ✅     | Filesystem Tools  |
-
----
-
-## 🔶 LEVEL 8 — Graphics & GUI
-
-> Goal: Visual interface and windowed environment.
+> **Goal:** Safety, isolation, and scalability.
 
 | Status | Component               |
 | ------ | ----------------------- |
-| ✅     | Framebuffer Abstraction |
-| ✅     | Basic Compositor        |
-| ✅     | Window Manager          |
-| ✅     | GUI Toolkit             |
-| ✅     | Mouse-driven UI         |
-| ✅     | Desktop Environment     |
+| ✅      | Physical Memory Manager |
+| ✅      | Paging (x86)            |
+| ✅      | Virtual Memory          |
+| ✅      | Kernel Heap (`kmalloc`) |
+| ✅      | Slab / Buddy Allocator  |
+| ✅      | User Memory Isolation   |
+
+**Result:**
+Crashes are contained, multitasking is possible.
 
 ---
 
-## ⚫ LEVEL 9 — Userland & Ecosystem
+## 🟣 PHASE 4 — Processes & Execution
 
-> Goal: Self-hosting, extensibility, and community.
+> **Goal:** True operating system behavior.
+
+| Status | Component                |
+| ------ | ------------------------ |
+| ✅      | Task / Process Structure |
+| ✅      | Context Switching        |
+| ✅      | Round-Robin Scheduler    |
+| ✅      | Kernel Threads           |
+| ✅      | User Mode (Ring 3)       |
+| ✅      | Syscalls (`int 0x80`)    |
+| ✅      | ELF Loader               |
+| ✅      | `exec()`                 |
+
+**Result:**
+Multiple programs run independently.
+
+---
+
+## 🟠 PHASE 5 — Storage & Filesystems
+
+> **Goal:** Persistence and data organization.
+
+| Status | Component           |
+| ------ | ------------------- |
+| ✅      | ATA PIO             |
+| ✅      | AHCI                |
+| ✅      | Disk Detection      |
+| ✅      | Sector Read / Write |
+| ✅      | MBR Partitioning    |
+| ✅      | FAT12 / FAT16       |
+| ✅      | FAT32               |
+| ☑️     | VFS                 |
+| [N]    | Block Cache         |
+
+**Result:**
+Programs and data survive reboots.
+
+---
+
+## 🔴 PHASE 6 — Hardware Enablement
+
+> **Goal:** Run on real machines, not just QEMU.
+
+| Status | Component        |
+| ------ | ---------------- |
+| ✅      | PCI              |
+| ✅      | ACPI             |
+| ✅      | USB (UHCI)       |
+| ✅      | VESA Framebuffer |
+| ✅      | Basic GPU Driver |
+
+**Result:**
+Modern hardware compatibility.
+
+---
+
+## 🟤 PHASE 7 — Shell, CLI & Tools
+
+> **Goal:** Productive text-based usage.
+
+| Status | Component                  |
+| ------ | -------------------------- |
+| ✅      | Advanced Shell             |
+| ✅      | Piping                     |
+| ✅      | Scrollback                 |
+| ✅      | Scripting (`.csr`, `.chs`) |
+| ✅      | Virtual Terminals          |
+| ✅      | Text Editor                |
+| ✅      | Filesystem Tools           |
+| 🔲     | Command history (↑ ↓)         |
+| 🔲     | Tab completion                |
+| 🔲     | Job control (`&`, `fg`, `bg`) |
+| 🔲     | Environment variables         |
+| 🔲     | Aliases                       |
+
+---
+
+## 🔶 PHASE 8 — Graphics & Desktop
+
+> **Goal:** A usable graphical environment.
+
+| Status | Component               |
+| ------ | ----------------------- |
+| ✅      | Framebuffer Abstraction |
+| ✅      | Compositor              |
+| ✅      | Window Manager          |
+| ✅      | GUI Toolkit             |
+| ✅      | Mouse-driven UI         |
+| ✅      | Desktop Environment     |
+| 🔲     | Window move / resize             |
+| 🔲     | Window close / minimize          |
+| 🔲     | Clipboard                        |
+| 🔲     | Basic fonts (bitmap → TTF later) |
+| 🔲     | Desktop icons                    |
+| 🔲     | Simple file manager              |
+
+---
+
+## ⚫ PHASE 9 — Networking & Internet
+
+> **Goal:** Real connectivity.
+
+| Status | Component          |
+| ------ | ------------------ |
+| ✅      | Ethernet           |
+| ✅      | DHCP               |
+| 🔲     | UDP sockets        |
+| 🔲     | TCP stack          |
+| 🔲     | DNS resolver       |
+| 🔲     | Loopback interface |
+| 🔲     | `ping`             |
+| 🔲     | `ifconfig`         |
+| 🔲     | Network status app |
+
+---
+
+## 🟩 PHASE 10 — Userland & Ecosystem
+
+> **Goal:** Make the OS extensible.
+
+| Status | Component            |
+| ------ | -------------------- |
+| ☑️     | libc (freestanding)  |
+| ☑️     | Package Manager      |
+| 🔲     | Ports System         |
+| 🔲     | Documentation System |
+| 🔲     | Native Build Tools   |
+| 🔲     | `/proc` filesystem             |
+| 🔲     | App launcher                   |
+| 🔲     | App metadata (`.desktop`-like) |
+
+---
+
+## 🟦 PHASE 11 — System Services & IPC
+
+> **Goal:** Clean architecture.
 
 | Status | Component              |
 | ------ | ---------------------- |
-| ☑️     | libc (minimal / freestanding)|
-| ✅     | POSIX-like API         |
-| ✅     | Internet Support (Ethernet + DHCP)       |
-| ☑️     | Package Manager (basic not stable)       |
-| 🔲     | Ports System           |
-| 🔲     | Native Build Toolchain |
-| 🔲     | Documentation System   |
+| 🔲     | Pipes                  |
+| 🔲     | Signals                |
+| 🔲     | Shared Memory          |
+| 🔲     | Background daemons     |
+| 🔲     | Init / service manager |
 
 ---
 
-## Final Note
+## 🟨 PHASE 12 — Security & Stability
 
-**Chrysalis OS** is designed as a transformation:
-from a simple terminal kernel
-→ into a complete, modular, and educational operating system.
+> **Goal:** Prevent accidents, not attackers.
 
-Not everything must be implemented —
-but everything is **understood**.
+| Status | Component            |
+| ------ | -------------------- |
+| 🔲     | Users / Groups       |
+| 🔲     | File permissions     |
+| 🔲     | Privilege separation |
+| 🔲     | Syscall validation   |
+| [N]    | Sandboxing           |
+
+---
+
+## 🟥 PHASE 13 — Self-Hosting (Long-term)
+
+> **Goal:** Chrysalis builds Chrysalis.
+
+| Status | Component       |
+| ------ | --------------- |
+| 🔲     | Native compiler |
+| 🔲     | Native linker   |
+| 🔲     | Full ports tree |
+
+#Final Note
+**Chrysalis OS** is designed as a transformation: from a simple terminal kernel → into a complete, modular, and educational operating system.
+
+Not everything must be implemented — but everything is understood.
