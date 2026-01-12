@@ -126,3 +126,14 @@ for f in *.png; do
     -interlace none \
     "$f"
 done
+
+
+isoinfo -l -i chrysalis-usb.iso
+
+grub-file --is-x86-multiboot kernel.bin && echo MULTIBOOT_OK
+grub-file --is-x86-multiboot2 kernel.bin && echo MULTIBOOT2_OK
+
+stat -c %s chrysalis.img
+truncate -s %512 chrysalis.img
+
+VBoxManage convertfromraw chrysalis.img chrysalis.vdi --format VDI
