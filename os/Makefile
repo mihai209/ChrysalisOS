@@ -975,10 +975,11 @@ $(ISO)/boot/$(KERNEL): $(OBJS) | dirs
 # ISO & RUN
 # -------------------------
 
-iso: all
+iso: all iso/boot/grub/grub.cfg
+	@mkdir -p $(ISO)/boot/grub
 	@mkdir -p $(ISO)/system/pkg/installed
 	@cp kernel/chryspkg/catalog.json $(ISO)/system/pkg/catalog.json
-	grub-mkrescue -o chrysalis.iso $(ISO)
+	grub-mkrescue --verbose -o chrysalis.iso $(ISO)
 
 run: iso
 	qemu-system-x86_64 -cdrom chrysalis.iso -m 512
