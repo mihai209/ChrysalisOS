@@ -88,6 +88,7 @@
 #include "ui/flyui/flyui.h"
 #include "ui/flyui/widgets/widgets.h"
 #include "ethernet/net.h"
+#include "detect/virtualbox.h"
 
 
 
@@ -273,6 +274,7 @@ void task_b(void)
     }
 }
 
+
 // -----------------------------
 // Helper: panic on kernel-detected fatal error
 // -----------------------------
@@ -301,6 +303,12 @@ extern "C" void kernel_main(uint32_t magic, uint32_t addr) {
 
     // 2) Terminal (text-mode) initialization - early so we can show errors
     terminal_init();
+
+    // Check for VirtualBox and panic if detected
+    virtualbox_check_or_panic();
+
+
+
 
     // 3) Early boot safety check: detect RAM and panic cleanly if insufficient
     // ram_check_or_panic(magic, addr); // Replaced with inline Multiboot2 logic below

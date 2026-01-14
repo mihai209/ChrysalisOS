@@ -100,6 +100,7 @@ OBJS = \
 	$(BUILD)/ram.o \
 	$(BUILD)/tpm.o \
 	$(BUILD)/videomemory.o \
+	$(BUILD)/virtualbox.o \
 	$(BUILD)/cmd_credits.o \
 	$(BUILD)/cmd_echo.o \
 	$(BUILD)/cmd_fortune.o \
@@ -589,6 +590,9 @@ $(BUILD)/tpm.o: kernel/detect/tpm.c | dirs
 
 $(BUILD)/videomemory.o: kernel/detect/videomemory.c | dirs
 	$(CC) $(CFLAGS) -Ikernel/include -c $< -o $@
+
+$(BUILD)/virtualbox.o: kernel/detect/virtualbox.cpp | dirs
+	$(CXX) $(CXXFLAGS) -Ikernel/include -c $< -o $@
 
 $(BUILD)/cmd_credits.o: kernel/cmds/credits.cpp | dirs
 	$(CXX) $(CXXFLAGS) -c $< -o $@
