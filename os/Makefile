@@ -193,6 +193,7 @@ OBJS = \
 	$(BUILD)/apps/task_manager_app.o \
 	$(BUILD)/apps/paint_app.o \
 	$(BUILD)/apps/demo3d_app.o \
+	$(BUILD)/apps/tic_tac_toe_app.o \
 	$(BUILD)/apps/app_manager.o \
 	$(BUILD)/apps/minesweeper_app.o \
 	$(BUILD)/apps/doom_app.o \
@@ -915,6 +916,10 @@ $(BUILD)/apps/run_dialog_app.o: kernel/apps/run_dialog_app.cpp | dirs
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 $(BUILD)/apps/task_manager_app.o: kernel/apps/task_manager_app.cpp | dirs
+	@mkdir -p $(dir $@)
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+$(BUILD)/apps/tic_tac_toe_app.o: kernel/apps/tic_tac_toe_app.cpp | dirs
 	@mkdir -p $(dir $@)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 

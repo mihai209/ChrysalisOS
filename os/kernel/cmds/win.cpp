@@ -18,6 +18,8 @@
 #include "../apps/demo3d_app.h"
 #include "../apps/doom_app.h"
 #include "../apps/minesweeper_app.h"
+#include "../apps/task_manager_app.h"
+#include "../apps/tic_tac_toe_app.h"
 #include "../ethernet/net.h"
 #include "../ethernet/net_device.h"
 #include "../include/stdio.h"
@@ -60,6 +62,7 @@ enum {
     ICON_MINE,
     ICON_DOOM,
     ICON_NET,
+    ICON_XO,
     ICON_RUN
 };
 
@@ -135,6 +138,11 @@ static void draw_icon_graphic(surface_t* s, int x, int y, int type) {
         case ICON_RUN: /* Run */
             fly_draw_rect_fill(s, x, y, 16, 16, 0xFFFFFFFF);
             fly_draw_text(s, x+4, y+2, "R", 0xFF000000);
+            break;
+        case ICON_XO: /* X and 0 */
+            fly_draw_rect_fill(s, x, y, 16, 16, 0xFFFFFFFF);
+            fly_draw_text(s, x+2, y+2, "X", 0xFFFF0000);
+            fly_draw_text(s, x+8, y+2, "O", 0xFF0000FF);
             break;
     }
 }
@@ -392,6 +400,18 @@ static bool doom_btn_event(fly_widget_t* w, fly_event_t* e) {
             start_menu_ctx = NULL;
         }
         doom_app_create();
+        return true;
+    }
+    return false;
+}
+
+/* Button Handler: Lansează Tic Tac Toe */
+static bool xo_btn_event(fly_widget_t* w, fly_event_t* e) {
+    (void)w;
+    if (e->type == FLY_EVENT_MOUSE_UP) {
+        if (start_menu_win) wm_destroy_window(start_menu_win);
+        start_menu_win = NULL; start_menu_ctx = NULL;
+        tic_tac_toe_app_create();
         return true;
     }
     return false;
@@ -703,6 +723,7 @@ static void create_start_menu() {
     btn = fly_button_create("Paint");    btn->x = bx; btn->y = y; btn->w = bw; btn->h = bh; btn->on_event = paint_btn_event;    fly_widget_add(root, btn); y += bh + 2;
     btn = fly_button_create("Calc");     btn->x = bx; btn->y = y; btn->w = bw; btn->h = bh; btn->on_event = calc_btn_event;     fly_widget_add(root, btn); y += bh + 2;
     btn = fly_button_create("Run...");   btn->x = bx; btn->y = y; btn->w = bw; btn->h = bh; btn->on_event = run_btn_event;      fly_widget_add(root, btn); y += bh + 2;
+    btn = fly_button_create("X and 0");  btn->x = bx; btn->y = y; btn->w = bw; btn->h = bh; btn->on_event = xo_btn_event;       fly_widget_add(root, btn); y += bh + 2;
     
     y += 5;
     /* Separator */
@@ -837,6 +858,9 @@ static void create_taskbar() {
     /* Doom */
     fly_widget_add(root, create_taskbar_btn(x, y, bw, bh, ICON_DOOM, doom_btn_event)); x += bw;
     
+    /* Tic Tac Toe */
+    fly_widget_add(root, create_taskbar_btn(x, y, bw, bh, ICON_XO, xo_btn_event)); x += bw;
+    
     /* Net (Right Aligned) */
     fly_widget_add(root, create_taskbar_btn(w - 150, y, bw, bh, ICON_NET, net_btn_event));
 
@@ -906,6 +930,7 @@ extern "C" int cmd_launch(int argc, char** argv) {
         clock_app_update();
         demo3d_app_update();
         doom_app_update();
+        task_manager_app_update();
 
         /* Update Taskbar Clock */
         datetime t;
@@ -1051,6 +1076,11 @@ extern "C" int cmd_launch(int argc, char** argv) {
                 /* 3.14 Dispatch to Minesweeper */
                 if (target == minesweeper_app_get_window()) {
                     minesweeper_app_handle_event(&ev);
+                }
+
+                /* 3.15 Dispatch to Tic Tac Toe */
+                if (target == tic_tac_toe_app_get_window()) {
+                    tic_tac_toe_app_handle_event(&ev);
                 }
 
                 /* 3.6 Dispatch to Popup */
