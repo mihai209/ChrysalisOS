@@ -5,3 +5,6 @@ os/build
 hdd.img
 git.txt
 .petal-test
+*.log
+*.o
+*.logs

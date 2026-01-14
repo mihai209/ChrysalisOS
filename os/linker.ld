@@ -5,12 +5,11 @@ SECTIONS
     /* load address: 1MiB */
     . = 1M;
 
-.multiboot : {
-    KEEP(*(.multiboot))
-}
-
-
-    .text : { *(.text*) }
+    .text :
+    {
+        KEEP(*(.multiboot))
+        *(.text*)
+    }
 
     .rodata : { *(.rodata*) }
 
