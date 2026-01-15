@@ -304,7 +304,7 @@ OBJS = \
 # TARGETURI PRINCIPALE
 # -------------------------
 
-.PHONY: all iso run clean help consolerun dirs
+.PHONY: all iso run clean help consolerun dirs icons
 
 all: $(ISO)/boot/$(KERNEL)
 
@@ -989,7 +989,13 @@ $(ISO)/boot/$(KERNEL): $(OBJS) | dirs
 # ISO & RUN
 # -------------------------
 
-iso: all iso/boot/grub/grub.cfg
+icons:
+	@echo "[ICONS] Generating icons.mod..."
+	cd ../tools/icons && python3 mkicons.py
+	@mkdir -p $(ISO)
+	mv ../tools/icons/icons.mod $(ISO)/icons.mod
+
+iso: all iso/boot/grub/grub.cfg icons
 	@mkdir -p $(ISO)/boot/grub
 	@mkdir -p $(ISO)/system/pkg/installed
 	@cp kernel/chryspkg/catalog.json $(ISO)/system/pkg/catalog.json
@@ -1002,7 +1008,7 @@ consolerun: iso
 	qemu-system-x86_64 -cdrom chrysalis.iso -nographic
 
 clean:
-	rm -rf $(BUILD) *.iso $(ISO)/boot/$(KERNEL)
+	rm -rf $(BUILD) *.iso $(ISO)/boot/$(KERNEL) $(ISO)/icons.mod ../tools/icons/icons.mod
 
 # -------------------------
 # ASSETS
