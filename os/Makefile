@@ -71,6 +71,7 @@ OBJS = \
 	$(BUILD)/cmd_fat.o \
 	$(BUILD)/vfs.o \
 	$(BUILD)/ramfs.o \
+	$(BUILD)/ramfs_add.o \
 	$(BUILD)/cmd_vfs.o \
 	$(BUILD)/pmm.o \
 	$(BUILD)/cmd_pmm.o \
@@ -495,6 +496,10 @@ $(BUILD)/vfs.o: kernel/fs/vfs/vfs.c | dirs
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(BUILD)/ramfs.o: kernel/fs/ramfs/ramfs.c | dirs
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(BUILD)/ramfs_add.o: kernel/fs/ramfs/ramfs_add.c | dirs
+	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(BUILD)/cmd_vfs.o: kernel/cmds/vfs.cpp | dirs

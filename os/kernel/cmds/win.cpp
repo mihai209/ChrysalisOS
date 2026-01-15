@@ -47,87 +47,6 @@ typedef struct {
     bool (*event_cb)(fly_widget_t* w, fly_event_t* e);
 } icon_btn_data_t;
 
-static void draw_icon_graphic(surface_t* s, int x, int y, int type) {
-    /* Simple pixel art icons */
-    switch (type) {
-        case ICON_START: /* Simple Diamond */
-            fly_draw_rect_fill(s, x+6, y, 4, 16, 0xFF000000);
-            fly_draw_rect_fill(s, x, y+6, 16, 4, 0xFF000000);
-            break;
-        case ICON_TERM: /* Terminal >_ */
-            fly_draw_rect_fill(s, x, y, 16, 14, 0xFF000000);
-            fly_draw_text(s, x+2, y+2, ">", 0xFF00FF00);
-            break;
-        case ICON_FILES: /* Folder */
-            fly_draw_rect_fill(s, x, y+2, 16, 12, 0xFFFFCC00);
-            fly_draw_rect_fill(s, x, y, 6, 2, 0xFFFFCC00);
-            break;
-        case ICON_IMG: /* Image */
-            fly_draw_rect_fill(s, x, y, 14, 14, 0xFFFFFFFF);
-            fly_draw_rect_outline(s, x, y, 14, 14, 0xFF000000);
-            fly_draw_rect_fill(s, x+4, y+4, 6, 6, 0xFFFF0000);
-            break;
-        case ICON_NOTE: /* Notepad */
-            fly_draw_rect_fill(s, x+2, y, 12, 16, 0xFFFFFFFF);
-            fly_draw_rect_fill(s, x+4, y+4, 8, 2, 0xFF000000);
-            fly_draw_rect_fill(s, x+4, y+8, 8, 2, 0xFF000000);
-            break;
-        case ICON_PAINT: /* Brush */
-            fly_draw_rect_fill(s, x+4, y, 4, 10, 0xFFA0522D);
-            fly_draw_rect_fill(s, x+2, y+10, 8, 4, 0xFFFF0000);
-            break;
-        case ICON_CALC: /* Calc */
-            fly_draw_rect_fill(s, x, y, 12, 16, 0xFFC0C0C0);
-            fly_draw_rect_fill(s, x+2, y+2, 8, 4, 0xFFFFFFFF);
-            break;
-        case ICON_CLOCK: /* Clock */
-            fly_draw_rect_outline(s, x, y, 14, 14, 0xFF000000);
-            fly_draw_rect_fill(s, x+7, y+2, 1, 6, 0xFF000000);
-            fly_draw_rect_fill(s, x+7, y+7, 4, 1, 0xFF000000);
-            break;
-        case ICON_CAL: /* Calendar */
-            fly_draw_rect_fill(s, x, y, 16, 16, 0xFFFFFFFF);
-            fly_draw_rect_fill(s, x, y, 16, 4, 0xFFFF0000);
-            fly_draw_text(s, x+2, y+4, "7", 0xFF000000);
-            break;
-        case ICON_TASK: /* List */
-            fly_draw_rect_fill(s, x, y, 14, 16, 0xFFFFFFFF);
-            fly_draw_rect_fill(s, x+2, y+2, 10, 2, 0xFF000000);
-            fly_draw_rect_fill(s, x+2, y+6, 10, 2, 0xFF000000);
-            break;
-        case ICON_INFO: /* Info */
-            fly_draw_rect_fill(s, x, y, 14, 14, 0xFF0000FF);
-            fly_draw_text(s, x+4, y, "i", 0xFFFFFFFF);
-            break;
-        case ICON_3D: /* Cube */
-            fly_draw_rect_outline(s, x, y, 12, 12, 0xFF000000);
-            fly_draw_rect_outline(s, x+4, y+4, 12, 12, 0xFF000000);
-            break;
-        case ICON_MINE: /* Mine */
-            fly_draw_rect_fill(s, x+4, y+4, 8, 8, 0xFF000000);
-            fly_draw_rect_fill(s, x+7, y, 2, 4, 0xFF000000);
-            break;
-        case ICON_DOOM: /* Face */
-            fly_draw_rect_fill(s, x, y, 14, 16, 0xFF8B4513);
-            fly_draw_rect_fill(s, x+2, y+4, 4, 4, 0xFFFFFFFF);
-            fly_draw_rect_fill(s, x+8, y+4, 4, 4, 0xFFFFFFFF);
-            break;
-        case ICON_NET: /* Net */
-            fly_draw_rect_fill(s, x, y+4, 16, 8, 0xFF0000FF);
-            fly_draw_rect_fill(s, x+6, y, 4, 16, 0xFF0000FF);
-            break;
-        case ICON_RUN: /* Run */
-            fly_draw_rect_fill(s, x, y, 16, 16, 0xFFFFFFFF);
-            fly_draw_text(s, x+4, y+2, "R", 0xFF000000);
-            break;
-        case ICON_XO: /* X and 0 */
-            fly_draw_rect_fill(s, x, y, 16, 16, 0xFFFFFFFF);
-            fly_draw_text(s, x+2, y+2, "X", 0xFFFF0000);
-            fly_draw_text(s, x+8, y+2, "O", 0xFF0000FF);
-            break;
-    }
-}
-
 static void fly_draw_line(surface_t* surf, int x0, int y0, int x1, int y1, uint32_t color) {
     int dx = (x1 > x0) ? (x1 - x0) : (x0 - x1);
     int sx = (x0 < x1) ? 1 : -1;
@@ -166,18 +85,16 @@ static void taskbar_btn_draw(fly_widget_t* w, surface_t* s, int x, int y) {
     fly_draw_line(s, x, y+w->h-1, x+w->w-1, y+w->h-1, c_br);
     fly_draw_line(s, x+w->w-1, y, x+w->w-1, y+w->h-1, c_br);
 
-    /* Try to load icon from module */
     const icon_image_t* ic = icon_get(d->icon_type);
     
     if (ic) {
         /* Blit Icon */
         int ix = x + (w->w - ic->w) / 2;
         int iy = y + (w->h - ic->h) / 2;
-        
+
         for (int r = 0; r < ic->h; r++) {
             for (int c = 0; c < ic->w; c++) {
                 uint32_t color = ic->pixels[r * ic->w + c];
-                /* Simple Alpha Check (assuming 0x00 is transparent) */
                 if ((color & 0xFF000000) != 0) {
                     if (ix + c < (int)s->width && iy + r < (int)s->height) {
                         s->pixels[(iy + r) * s->width + (ix + c)] = color;
@@ -185,9 +102,6 @@ static void taskbar_btn_draw(fly_widget_t* w, surface_t* s, int x, int y) {
                 }
             }
         }
-    } else {
-        /* Fallback to procedural graphics */
-        draw_icon_graphic(s, x + (w->w - 16)/2, y + (w->h - 16)/2, d->icon_type);
     }
 }
 

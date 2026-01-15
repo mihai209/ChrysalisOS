@@ -91,6 +91,8 @@
 #include "detect/virtualbox.h"
 
 
+extern "C" void ramfs_create_file(const char* name, const void* data, size_t len);
+
 
 //#include "arch/i386/interrupts.h"
 //#include "detect/tpm.h"
@@ -332,6 +334,12 @@ extern "C" void kernel_main(uint32_t magic, uint32_t addr) {
                      }
                  }
                  total_ram_mb = total_bytes / (1024 * 1024);
+            } else if (tag->type == MULTIBOOT2_TAG_TYPE_MODULE) {
+                 /* Detectare Modul (icons.mod) */
+                 struct multiboot2_tag_module *mod = (struct multiboot2_tag_module*)tag;
+                 uint32_t size = mod->mod_end - mod->mod_start;
+                 ramfs_create_file("icons.mod", (void*)mod->mod_start, size);
+                 serial("[KERNEL] Multiboot Module loaded: icons.mod at 0x%x (%u bytes)\n", mod->mod_start, size);
             }
             tag = (struct multiboot2_tag*)((uint8_t*)tag + ((tag->size + 7) & ~7));
         }
