@@ -1,5 +1,5 @@
 #include "doom_app.h"
-#include "../games/doom/doomgeneric/doomgeneric.h"
+//#include "../games/doom/doomgeneric/doomgeneric.h"
 #include "../ui/wm/wm.h"
 #include "../include/setjmp.h"
 
@@ -30,7 +30,7 @@ void doom_app_create(void) {
     exit_jmp_set = 1;
     if (setjmp(exit_jmp_buf) == 0) {
         /* Initialize Doom */
-        doomgeneric_Create(1, argv);
+        //doomgeneric_Create(1, argv);
         doom_running = true;
     } else {
         /* Returned from exit() via longjmp */
@@ -52,7 +52,7 @@ void doom_app_update(void) {
     /* Set recovery point for errors during Tick */
     exit_jmp_set = 1;
     if (setjmp(exit_jmp_buf) == 0) {
-        doomgeneric_Tick();
+       // doomgeneric_Tick();
     } else {
         doom_running = false;
         doom_destroy_window();
