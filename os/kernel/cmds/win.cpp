@@ -24,6 +24,7 @@
 #include "../ethernet/net_device.h"
 #include "../include/stdio.h"
 #include "../mem/kmalloc.h"
+#include "../apps/icons/icons.h"
 
 extern "C" void serial(const char *fmt, ...);
 
@@ -45,26 +46,6 @@ typedef struct {
     bool pressed;
     bool (*event_cb)(fly_widget_t* w, fly_event_t* e);
 } icon_btn_data_t;
-
-enum {
-    ICON_START = 0,
-    ICON_TERM,
-    ICON_FILES,
-    ICON_IMG,
-    ICON_NOTE,
-    ICON_PAINT,
-    ICON_CALC,
-    ICON_CLOCK,
-    ICON_CAL,
-    ICON_TASK,
-    ICON_INFO,
-    ICON_3D,
-    ICON_MINE,
-    ICON_DOOM,
-    ICON_NET,
-    ICON_XO,
-    ICON_RUN
-};
 
 static void draw_icon_graphic(surface_t* s, int x, int y, int type) {
     /* Simple pixel art icons */
@@ -185,9 +166,29 @@ static void taskbar_btn_draw(fly_widget_t* w, surface_t* s, int x, int y) {
     fly_draw_line(s, x, y+w->h-1, x+w->w-1, y+w->h-1, c_br);
     fly_draw_line(s, x+w->w-1, y, x+w->w-1, y+w->h-1, c_br);
 
+    /* Try to load icon from module */
+    const icon_image_t* ic = icon_get(d->icon_type);
     
-    /* Draw Icon Centered */
-    draw_icon_graphic(s, x + (w->w - 16)/2, y + (w->h - 16)/2, d->icon_type);
+    if (ic) {
+        /* Blit Icon */
+        int ix = x + (w->w - ic->w) / 2;
+        int iy = y + (w->h - ic->h) / 2;
+        
+        for (int r = 0; r < ic->h; r++) {
+            for (int c = 0; c < ic->w; c++) {
+                uint32_t color = ic->pixels[r * ic->w + c];
+                /* Simple Alpha Check (assuming 0x00 is transparent) */
+                if ((color & 0xFF000000) != 0) {
+                    if (ix + c < (int)s->width && iy + r < (int)s->height) {
+                        s->pixels[(iy + r) * s->width + (ix + c)] = color;
+                    }
+                }
+            }
+        }
+    } else {
+        /* Fallback to procedural graphics */
+        draw_icon_graphic(s, x + (w->w - 16)/2, y + (w->h - 16)/2, d->icon_type);
+    }
 }
 
 /* Button Handler */
@@ -908,6 +909,14 @@ extern "C" int cmd_launch(int argc, char** argv) {
     theme_init();
     compositor_init();
     wm_init();
+    
+    /* Load Icons */
+    if (icons_init("/icons.mod")) {
+        serial("[WIN] Icons loaded successfully.\n");
+    } else {
+        serial("[WIN] Warning: icons.mod not found or invalid.\n");
+    }
+
     app_manager_init();
     
     /* 3. Create Taskbar */

@@ -1,0 +1,50 @@
+    /* Start Button */
+    ICON_START
+
+    /* Run */
+    ICON_RUN
+    
+    /* Terminal */
+    ICON_TERM
+    
+    /* Files */
+    ICON_FILES
+    
+    /* Image */
+    ICON_IMG
+    
+    /* Notepad */
+    ICON_NOTE
+    
+    /* Paint */
+    ICON_PAINT
+    
+    /* Calc */
+    ICON_CALC
+    
+    /* Clock App */
+    ICON_CLOCK
+    
+    /* Calendar */
+    ICON_CAL
+    
+    /* Task Manager */
+    ICON_TASK
+    
+    /* Info */
+    ICON_INFO
+    
+    /* 3D */
+    ICON_3D
+    
+    /* Mine */
+    ICON_MINE
+    
+    /* Doom */
+    ICON_DOOM
+    
+    /* Tic Tac Toe */
+    ICON_XO
+    
+    /* Net (Right Aligned) */
+    ICON_NET
