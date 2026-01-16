@@ -16,7 +16,6 @@
 #include "../ui/flyui/draw.h"
 #include "../apps/app_manager.h"
 #include "../apps/demo3d_app.h"
-//#include "../apps/doom_app.h"
 #include "../apps/minesweeper_app.h"
 #include "../apps/task_manager_app.h"
 #include "../apps/tic_tac_toe_app.h"
@@ -304,21 +303,6 @@ static bool mine_btn_event(fly_widget_t* w, fly_event_t* e) {
     }
     return false;
 }
-
-/* Button Handler: Lansează Doom 
-static bool doom_btn_event(fly_widget_t* w, fly_event_t* e) {
-    (void)w;
-    if (e->type == FLY_EVENT_MOUSE_UP) {
-        if (start_menu_win) {
-            wm_destroy_window(start_menu_win);
-            start_menu_win = NULL;
-            start_menu_ctx = NULL;
-        }
-        doom_app_create();
-        return true;
-    }
-    return false;
-}*/
 
 /* Button Handler: Lansează Tic Tac Toe */
 static bool xo_btn_event(fly_widget_t* w, fly_event_t* e) {
@@ -770,9 +754,6 @@ static void create_taskbar() {
     /* Mine */
     fly_widget_add(root, create_taskbar_btn(x, y, bw, bh, ICON_MINE, mine_btn_event)); x += bw;
     
-    /* Doom 
-    fly_widget_add(root, create_taskbar_btn(x, y, bw, bh, ICON_DOOM, doom_btn_event)); x += bw;*/
-    
     /* Tic Tac Toe */
     fly_widget_add(root, create_taskbar_btn(x, y, bw, bh, ICON_XO, xo_btn_event)); x += bw;
     
@@ -852,7 +833,6 @@ extern "C" int cmd_launch(int argc, char** argv) {
         /* Update Apps */
         clock_app_update();
         demo3d_app_update();
-       // doom_app_update();
         task_manager_app_update();
 
         /* Update Taskbar Clock */
@@ -990,11 +970,6 @@ extern "C" int cmd_launch(int argc, char** argv) {
                 if (target == demo3d_app_get_window()) {
                     demo3d_app_handle_event(&ev);
                 }
-
-                /* 3.13 Dispatch to Doom 
-                if (target == doom_app_get_window()) {
-                    doom_app_handle_event(&ev);
-                }*/
 
                 /* 3.14 Dispatch to Minesweeper */
                 if (target == minesweeper_app_get_window()) {

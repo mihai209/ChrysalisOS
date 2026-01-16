@@ -20,10 +20,9 @@ icons = [
     (10, "info.png"),
     (11, "3D.png"),
     (12, "mine.png"),
-    (13, "doom.png"),
-    (14, "net.webp"),
-    (15, "x0.png"),
-    (16, "run.png"),
+    (13, "net.webp"),
+    (14, "x0.png"),
+    (15, "run.png"),
 ]
 
 entries = []

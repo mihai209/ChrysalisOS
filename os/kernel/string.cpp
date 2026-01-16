@@ -169,7 +169,7 @@ char* utoa_hex(char* out, uint32_t v)
     return out;
 }
 
-/* ---------- case-insensitive string ops (needed by Doom) ---------- */
+/* ---------- case-insensitive string ops ---------- */
 
 static inline char tolower(char c) {
     if (c >= 'A' && c <= 'Z') return c + 32;

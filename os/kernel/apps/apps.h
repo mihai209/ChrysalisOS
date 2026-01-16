@@ -13,4 +13,3 @@
 #include "task_manager_app.h"
 #include "paint_app.h"
 #include "demo3d_app.h"
-#include "doom_app.h"

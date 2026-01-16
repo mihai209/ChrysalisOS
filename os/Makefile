@@ -32,6 +32,7 @@ OBJS = \
 	$(BUILD)/shell.o \
 	$(BUILD)/isr.o \
 	$(BUILD)/terminal.o \
+	$(BUILD)/stdio_impl.o \
 	$(BUILD)/cmd_clear.o \
 	$(BUILD)/cmd_reboot.o \
 	$(BUILD)/cmd_shutdown.o \
@@ -198,7 +199,6 @@ OBJS = \
 	$(BUILD)/apps/icons/icons.o \
 	$(BUILD)/apps/app_manager.o \
 	$(BUILD)/apps/minesweeper_app.o \
-	$(BUILD)/posix_stubs.o \
 	$(BUILD)/ethernet/net.o \
 	$(BUILD)/ethernet/net_device.o \
 	$(BUILD)/ethernet/eth.o \
@@ -243,8 +243,6 @@ dirs: $(BUILD)
 	mkdir -p $(BUILD)/ui/wm
 	mkdir -p $(BUILD)/ui/flyui
 	mkdir -p $(BUILD)/apps
-	mkdir -p $(BUILD)/games/doom/doomgeneric
-	mkdir -p $(BUILD)/games/doom/doomgeneric/doom
 	mkdir -p ${BUILD}/ethernet
 	mkdir -p ${BUILD}/ethernet/drivers
 	mkdir -p ${BUILD}/crypto
@@ -302,6 +300,9 @@ $(BUILD)/isr.o: kernel/interrupts/isr.cpp | dirs
 
 $(BUILD)/shell.o: kernel/shell/shell.cpp | dirs
 	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+$(BUILD)/stdio_impl.o: kernel/stdio_impl.c | dirs
+	$(CC) $(CFLAGS) -c $< -o $@
 
 $(BUILD)/cmd_clear.o: kernel/cmds/clear.cpp | dirs
 	$(CXX) $(CXXFLAGS) -c $< -o $@
@@ -845,6 +846,10 @@ $(BUILD)/apps/tic_tac_toe_app.o: kernel/apps/tic_tac_toe_app.cpp | dirs
 	@mkdir -p $(dir $@)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
+$(BUILD)/apps/minesweeper_app.o: kernel/apps/minesweeper_app.cpp | dirs
+	@mkdir -p $(dir $@)
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
 $(BUILD)/apps/icons/icons.o: kernel/apps/icons/icons.c | dirs
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c $< -o $@
@@ -860,33 +865,6 @@ $(BUILD)/apps/demo3d_app.o: kernel/apps/demo3d_app.cpp | dirs
 $(BUILD)/apps/app_manager.o: kernel/apps/app_manager.cpp | dirs
 	@mkdir -p $(dir $@)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
-
-$(BUILD)/apps/doom_app.o: kernel/apps/doom_app.cpp | dirs
-	@mkdir -p $(dir $@)
-	$(CXX) $(CXXFLAGS) -c $< -o $@
-
-$(BUILD)/apps/minesweeper_app.o: kernel/apps/minesweeper_app.cpp | dirs
-	@mkdir -p $(dir $@)
-	$(CXX) $(CXXFLAGS) -c $< -o $@
-
-$(BUILD)/games/doom/doomgeneric/%.o: kernel/games/doom/doomgeneric/%.c | dirs
-	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) -Ikernel/games/doom/doomgeneric -c $< -o $@
-
-$(BUILD)/games/doom/doomgeneric/doom/%.o: kernel/games/doom/doomgeneric/doom/%.c | dirs
-	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) -Ikernel/games/doom/doomgeneric -Ikernel/games/doom/doomgeneric/doom -c $< -o $@
-
-$(BUILD)/games/doom/doom_iwad.o: \
-	kernel/games/doom/doom_iwad.c \
-	kernel/games/doom/freedoom1_wad.inc | dirs
-	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) -c kernel/games/doom/doom_iwad.c -o $@
-
-
-$(BUILD)/posix_stubs.o: kernel/posix_stubs.c | dirs
-	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) -c $< -o $@
 
 $(BUILD)/ethernet/%.o: kernel/ethernet/%.c | dirs
 	@mkdir -p $(dir $@)

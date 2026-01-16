@@ -40,9 +40,6 @@
     /* Mine */
     ICON_MINE
     
-    /* Doom */
-    ICON_DOOM
-    
     /* Tic Tac Toe */
     ICON_XO
     

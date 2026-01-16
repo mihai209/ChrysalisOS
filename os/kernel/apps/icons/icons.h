@@ -22,7 +22,6 @@ enum {
     ICON_INFO,
     ICON_3D,
     ICON_MINE,
-    ICON_DOOM,
     ICON_NET,
     ICON_XO,
     ICON_RUN
