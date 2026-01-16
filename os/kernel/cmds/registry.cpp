@@ -45,7 +45,6 @@
 #include "get.h"
 #include "curl.h"
 #include "pkg.h"
-#include "installer.h"
 // Minimal freestanding helpers (no libc)
 
 /*
@@ -152,7 +151,6 @@ static int wrap_cmd_net(int argc, char **argv)       { return wrap_new_int(cmd_n
 static int wrap_cmd_get(int argc, char **argv)       { return wrap_new_int(cmd_get, argc, argv); }        /* int cmd_get(int,char**) */
 static int wrap_cmd_curl(int argc, char **argv)      { return wrap_new_int(cmd_curl, argc, argv); }       /* int cmd_curl(int,char**) */
 static int wrap_cmd_pkg(int argc, char **argv)       { return wrap_new_int(cmd_pkg, argc, argv); }        /* int cmd_pkg(int,char**) */
-static int wrap_cmd_installer(int argc, char **argv) { return wrap_new_int(cmd_installer, argc, argv); } /* int cmd_installer(int,char**) */
 /* Wrapper for execve */
 static int wrap_cmd_exec(int argc, char **argv) {
     if (argc < 2) return -1;
@@ -197,7 +195,6 @@ Command command_table[] = {
     { "play",      wrap_cmd_play },
    // { "reboot",    wrap_cmd_reboot },
     { "rm",        wrap_cmd_rm },
-    { "installer", wrap_cmd_installer },
     { "shutdown",  wrap_cmd_shutdown },
     { "sysfetch",  wrap_cmd_sysfetch },
     { "ticks",     wrap_cmd_ticks },
