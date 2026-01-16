@@ -9,7 +9,7 @@ LD = ld
 CFLAGS = -fno-builtin -nostdinc -Wall -Wextra -ffreestanding -O2 -m32 -I../os/kernel/include
 CXXFLAGS = $(CFLAGS) -fno-exceptions -fno-rtti
 ASFLAGS = -f elf32
-LDFLAGS = -nostdlib -m elf_i386 -T ../os/kernel/linker.ld
+LDFLAGS = -nostdlib -m elf_i386 -T ../os/linker.ld
 
 BUILD = build
 ISO = iso
@@ -18,7 +18,6 @@ ISO = iso
 OBJS = \
 	$(BUILD)/multiboot2_header.o \
 	$(BUILD)/boot.o \
-	$(BUILD)/kernel_main.o \
 	$(BUILD)/kernel_installer.o \
 	$(BUILD)/installer.o \
 	$(BUILD)/string.o
@@ -38,9 +37,9 @@ $(BUILD)/multiboot2_header.o: ../os/arch/i386/multiboot2_header.c
 	@echo "[BUILD] multiboot2_header.c"
 	$(CC) $(CFLAGS) -c $< -o $@
 
-# Installer UI kernel entry
+# Kernel entry point and installer implementation
 $(BUILD)/kernel_installer.o: kernel.cpp
-	@echo "[BUILD] kernel.cpp (installer entry)"
+	@echo "[BUILD] kernel.cpp (kernel entry + installer)"
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 # Real installer implementation
@@ -48,20 +47,10 @@ $(BUILD)/installer.o: installer.cpp
 	@echo "[BUILD] installer.cpp (real installation)"
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-# Kernel main entry point (minimal)
-$(BUILD)/kernel_main.o: main.cpp
-	@echo "[BUILD] main.cpp (kernel entry)"
+# String functions (minimal installer version)
+$(BUILD)/string.o: string.cpp
+	@echo "[BUILD] string.cpp (minimal)"
 	$(CXX) $(CXXFLAGS) -c $< -o $@
-
-# String functions
-$(BUILD)/string.o: ../os/kernel/string.cpp
-	@echo "[BUILD] string.cpp"
-	$(CXX) $(CXXFLAGS) -c $< -o $@
-
-# Standard I/O implementation
-$(BUILD)/stdio_impl.o: ../os/kernel/stdio_impl.c
-	@echo "[BUILD] stdio_impl.c"
-	$(CC) $(CFLAGS) -c $< -o $@
 
 # Kernel ELF binary
 $(BUILD)/installer.elf: $(OBJS)
