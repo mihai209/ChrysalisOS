@@ -8,3 +8,9 @@ git.txt
 *.log
 *.o
 *.logs
+*.sha256
+*.img
+*.iso
+*.bin
+*.elf
+*.out

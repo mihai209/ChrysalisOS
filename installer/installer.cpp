@@ -1,6 +1,6 @@
-/* Chrysalis OS Installer - Real Implementation
- * Purpose: Format secondary disk, install system files, setup bootloader
- * This is a REAL installer that actually writes to hdd.img via IDE
+/* Chrysalis OS Installer - Real Functional Implementation
+ * Based on: Debian installer, Linux installation architecture
+ * Purpose: Format target disk, install kernel+rootfs, setup bootloader (Windows-style)
  */
 
 #include <stdint.h>

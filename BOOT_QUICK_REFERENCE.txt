@@ -1,0 +1,252 @@
+#!/usr/bin/env bash
+# ChrysalisOS Boot Quick Reference
+# Save as: BOOT_QUICK_REFERENCE.txt
+
+═══════════════════════════════════════════════════════════════════════════════
+                     CHRYSALIS OS BOOT QUICK REFERENCE
+═══════════════════════════════════════════════════════════════════════════════
+
+ISO LOCATION
+────────────────────────────────────────────────────────────────────────────────
+~/ChrysalisOS/hybrid/chrysalis-alpine-hybrid.iso (38 MB)
+
+
+QUICK START (QEMU)
+────────────────────────────────────────────────────────────────────────────────
+$ cd ~/Desktop/ChrysalisOS
+$ qemu-system-i386 -cdrom hybrid/chrysalis-alpine-hybrid.iso -m 512 -boot d
+
+
+BOOT MENU OPTIONS (Press at GRUB)
+────────────────────────────────────────────────────────────────────────────────
+1. Chrysalis OS (Alpine + Bash + Networking)    ← Default - Use this
+2. Chrysalis OS (Debug - Full Output)            ← If boot fails, shows debug info
+3. Alpine Linux Shell Only                       ← Minimal test
+4. QEMU: Reboot                                  ← Quick reboot
+
+
+BOOT COMMANDS BY PLATFORM
+────────────────────────────────────────────────────────────────────────────────
+
+QEMU:
+  qemu-system-i386 -cdrom chrysalis-alpine-hybrid.iso -m 512 -boot d
+  
+QEMU + Serial Console:
+  qemu-system-i386 -cdrom chrysalis-alpine-hybrid.iso -m 512 -serial stdio
+
+QEMU + KVM:
+  qemu-system-i386 -cdrom chrysalis-alpine-hybrid.iso -m 512 -enable-kvm
+
+VIRTUALBOX:
+  VBoxManage createvm --name chrysalis --ostype Linux
+  VBoxManage modifyvm chrysalis --memory 512
+  VBoxManage storageattach chrysalis --storagectl IDE --port 1 --device 0 \
+    --type dvddrive --medium chrysalis-alpine-hybrid.iso
+  VBoxManage startvm chrysalis
+
+USB BOOT (Physical):
+  sudo dd if=hybrid/chrysalis-alpine-hybrid.iso of=/dev/sdX bs=4M
+  sudo sync
+
+
+IF BOOT FAILS
+────────────────────────────────────────────────────────────────────────────────
+
+Problem: Stuck in Alpine emergency shell (~ #)
+Solution: Try "Debug - Full Output" from GRUB menu (option 2)
+
+In emergency shell, check:
+  ~ # cat /proc/filesystems      (Look for iso9660)
+  ~ # cat /proc/cmdline         (Should have root=/dev/sr0 rootfstype=iso9660)
+  ~ # exit                       (Return to GRUB)
+
+
+AFTER BOOT
+────────────────────────────────────────────────────────────────────────────────
+
+Default environment: Chrysalis daemon shell
+  chrysalis> help               (Show available commands)
+  chrysalis> bash               (Switch to bash)
+
+In bash:
+  root@chrysalis-alpine:~# network-check         (Test internet)
+  root@chrysalis-alpine:~# ll                    (List with colors)
+  root@chrysalis-alpine:~# download http://...  (Download files)
+  root@chrysalis-alpine:~# curl http://...      (Fetch web content)
+
+
+DIAGNOSTICS
+────────────────────────────────────────────────────────────────────────────────
+
+Run boot diagnostics:
+  ./boot-diagnose.sh
+
+Check boot parameters:
+  cat /proc/cmdline
+
+Check loaded modules:
+  lsmod | grep -E "iso|loop"
+
+Check system logs:
+  tail /var/log/chrysalis.log
+  dmesg | tail -20
+
+
+FEATURES AVAILABLE
+────────────────────────────────────────────────────────────────────────────────
+
+✓ Bash shell with history and aliases
+✓ 13 builtin commands (help, pwd, ls, cat, cd, etc.)
+✓ 36+ Busybox utilities (grep, sed, awk, tar, gzip, etc.)
+✓ Full networking (curl, wget, ping, ifconfig, etc.)
+✓ Network utilities (network-check, network-status, download)
+✓ Automatic DHCP on eth0
+✓ Colored terminal output
+✓ Command history
+✓ File operations (read, write, mkdir, rm, etc.)
+
+
+KEY BINDINGS
+────────────────────────────────────────────────────────────────────────────────
+
+Ctrl+C       Exit current command/shell
+Ctrl+D       End of input (logout)
+Ctrl+L       Clear screen
+Ctrl+R       Search history (in bash)
+Up/Down      Navigate history
+Tab          Command completion
+
+
+SHELL ALIASES (in bash)
+────────────────────────────────────────────────────────────────────────────────
+
+ll           List long format (ls -la)
+la           List all files (ls -A)
+l            List classify (ls -CF)
+
+
+NETWORK UTILITIES
+────────────────────────────────────────────────────────────────────────────────
+
+network-check           Test internet connectivity
+network-status          Show network configuration
+network-config          Manually configure DHCP
+download http://url     Download file using curl/wget
+
+
+DOCUMENTATION
+────────────────────────────────────────────────────────────────────────────────
+
+BOOT_FIX_SUMMARY.md         Complete boot issue technical analysis
+GUI_EDITION_README.md        Full user guide with all features
+boot-diagnose.sh            Automated boot environment check
+PROJECT_COMPLETE.md         Project summary
+LINUX_PORT_COMPLETE.md      Architecture documentation
+
+
+COMMON ISSUES & FIXES
+────────────────────────────────────────────────────────────────────────────────
+
+Issue: No network
+  Fix: network-check (auto-configures with DHCP)
+
+Issue: File too large to download
+  Fix: Use wget instead: wget http://url
+
+Issue: Terminal shows garbled characters
+  Fix: export TERM=xterm-256color
+
+Issue: Bash history lost after reboot
+  Fix: Normal (ISO is read-only)
+
+Issue: Can't write to /tmp
+  Fix: Available, write to other locations like /root
+
+
+KEYBOARD NAVIGATION IN GRUB
+────────────────────────────────────────────────────────────────────────────────
+
+↑ / ↓       Navigate menu entries
+Enter       Boot selected entry
+E           Edit boot parameters (advanced)
+C           GRUB command line (advanced)
+
+
+PERFORMANCE NOTES
+────────────────────────────────────────────────────────────────────────────────
+
+• ISO9660 read-only by design (faster, smaller)
+• Root filesystem loaded from CD/ISO (slower initial boot)
+• RAM usage: ~256 MB (use -m 512 for safety margin)
+• CPU: 1 core minimum (use -smp for more cores)
+• Network: DHCP auto-config on boot
+
+
+SYSTEM INFO
+────────────────────────────────────────────────────────────────────────────────
+
+Kernel:              Alpine Linux 6.6-virt
+Init System:         Chrysalis daemon
+Shell:               Bash (5.1+) with custom config
+Base Utilities:      Busybox 1.36.1
+Bootloader:          GRUB 2.x
+Filesystem:          ISO9660 (read-only)
+Networking:          curl, wget, net-tools, iproute2, iputils
+
+
+ADVANCED QEMU OPTIONS
+────────────────────────────────────────────────────────────────────────────────
+
+More CPU cores:
+  qemu-system-i386 -cdrom iso -m 512 -smp 4
+
+More memory:
+  qemu-system-i386 -cdrom iso -m 1024
+
+With disk:
+  qemu-system-i386 -cdrom iso -hda disk.img -m 512
+
+With networking (user mode):
+  qemu-system-i386 -cdrom iso -m 512 -net nic -net user
+
+With KVM acceleration:
+  qemu-system-i386 -cdrom iso -m 512 -enable-kvm
+
+Text-only (no graphics):
+  qemu-system-i386 -cdrom iso -m 512 -nographic -serial stdio
+
+
+GETTING HELP
+────────────────────────────────────────────────────────────────────────────────
+
+In shell:
+  chrysalis> help              Show builtin commands
+  chrysalis> busybox --help    Show busybox commands
+
+In bash:
+  $ man <command>              Manual (if available)
+  $ <command> --help           Help
+  $ <command> -h               Help (short)
+
+Online:
+  See GUI_EDITION_README.md for comprehensive guide
+  See BOOT_FIX_SUMMARY.md for boot issues
+
+
+SHUTDOWN
+────────────────────────────────────────────────────────────────────────────────
+
+In Chrysalis shell:
+  chrysalis> exit
+
+In bash:
+  # exit
+
+In QEMU:
+  Ctrl+Alt+X (if graphical)
+  Ctrl+A then X (if console)
+
+
+═══════════════════════════════════════════════════════════════════════════════
+                              READY TO BOOT!
+═══════════════════════════════════════════════════════════════════════════════

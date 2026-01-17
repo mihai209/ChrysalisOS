@@ -1,0 +1,54 @@
+
+CHRYSALIS OS - ALPINE HYBRID DEPLOYMENT
+Generated: 2026-01-17
+
+ISO IMAGE: chrysalis-alpine-hybrid.iso
+Size: 60.9MB
+Checksum: 3a50813ae5a34628b86095587ac7f0f07676ed656021613b534a60b5d3c884a7
+
+DEPLOYMENT METHODS:
+
+1. QEMU Virtual Machine:
+   qemu-system-i386 -cdrom chrysalis-alpine-hybrid.iso -m 512
+
+2. VirtualBox:
+   - Create new VM (Linux, 32-bit)
+   - Mount ISO as boot CD
+   - Start VM
+
+3. USB Stick (Real Hardware):
+   sudo dd if=chrysalis-alpine-hybrid.iso of=/dev/sdX bs=4M
+   (Replace sdX with your USB device)
+
+4. Direct Boot:
+   - Burn ISO to CD/DVD
+   - Boot from disc
+
+COMPONENTS INCLUDED:
+✓ Alpine Linux 3.19 (vmlinuz-virt 6.6)
+✓ Busybox 1.36.1
+✓ Chrysalis OS (GUI + logic)
+✓ GRUB 2 bootloader
+✓ Multiboot2 support
+✓ Syslinux fallback
+
+BOOT OPTIONS:
+1. Chrysalis OS (default)
+2. Chrysalis OS (verbose)
+3. Alpine Linux shell
+
+POST-BOOT:
+- System initializes Alpine Linux
+- Loads Chrysalis startup script
+- Presents Chrysalis GUI/shell
+- Can access /opt/chrysalis/ code
+
+FEATURES:
+- Full Linux kernel capabilities
+- Real Unix shell (Busybox)
+- Chrysalis GUI framework
+- Modular design
+- Small footprint
+- Fast boot
+
+For more information see README.txt on ISO

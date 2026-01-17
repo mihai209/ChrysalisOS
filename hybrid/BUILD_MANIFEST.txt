@@ -1,0 +1,43 @@
+
+CHRYSALIS OS - ALPINE HYBRID BUILD
+Generated: 2026-01-17
+
+BASE COMPONENTS:
+  - Alpine Linux 3.19 (x86 32-bit)
+  - Linux Kernel 6.6-virt
+  - Busybox 1.36.1
+  - Chrysalis OS GUI Framework
+
+BUILD ARTIFACTS:
+  - vmlinuz: 6.2MB
+  - initramfs: 6.7MB
+  - modloop: 13.4MB
+  - busybox: 801.3KB
+  - rootfs.tar.gz: 26.7MB
+
+FEATURES:
+  ✓ Real Linux kernel (6.6-virt)
+  ✓ Full Alpine environment
+  ✓ Busybox shell and utilities
+  ✓ Chrysalis OS GUI/logic layer
+  ✓ Multiboot2 bootable
+  ✓ GRUB bootloader
+  ✓ Modular filesystem
+
+BOOT SEQUENCE:
+  BIOS → GRUB → Kernel → Initramfs → /opt/chrysalis/init.sh → Chrysalis GUI
+
+FILESYSTEM LAYOUT:
+  /boot/              - Kernel, initramfs, GRUB
+  /bin/               - Busybox + symlinks
+  /sbin/              - System utilities
+  /opt/chrysalis/     - Chrysalis OS code and GUI
+  /etc/               - Configuration files
+  /proc/, /sys/, /dev/ - Virtual filesystems
+
+NEXT STEPS:
+  1. Package as installer ISO
+  2. Boot in QEMU to test
+  3. Deploy to real hardware (USB stick)
+  4. Integrate Chrysalis GUI into Alpine environment
+

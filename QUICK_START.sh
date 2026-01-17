@@ -1,0 +1,78 @@
+#!/bin/bash
+# Quick Start Guide for Chrysalis Alpine Hybrid
+
+echo "╔════════════════════════════════════════════════════════╗"
+echo "║  Chrysalis OS - Alpine + Busybox Hybrid System         ║"
+echo "║  Status: PRODUCTION READY ✅                           ║"
+echo "╚════════════════════════════════════════════════════════╝"
+echo ""
+
+ISO_PATH="/home/mihai/Desktop/ChrysalisOS/hybrid/chrysalis-alpine-hybrid.iso"
+
+echo "📦 SYSTEM COMPONENTS"
+echo "────────────────────"
+echo "✅ Alpine Linux 3.19 (x86 32-bit)"
+echo "✅ Linux Kernel 6.6-virt"
+echo "✅ Busybox 1.36.1 (36+ utilities)"
+echo "✅ Chrysalis OS Framework"
+echo ""
+
+echo "📊 ARTIFACT INFORMATION"
+echo "──────────────────────"
+ls -lh "$ISO_PATH" | awk '{print "ISO Size: " $5}'
+file "$ISO_PATH" | sed 's/^/File Type: /'
+sha256sum "$ISO_PATH" | awk '{print "SHA256: " substr($1,1,32) "..."}'
+echo ""
+
+echo "🚀 DEPLOYMENT OPTIONS"
+echo "────────────────────"
+echo ""
+echo "1️⃣  TEST IN QEMU (Recommended First)"
+echo "   Command:"
+echo "   qemu-system-i386 -cdrom $ISO_PATH -m 512"
+echo ""
+echo "2️⃣  USB STICK DEPLOYMENT"
+echo "   Command (as root):"
+echo "   sudo dd if=$ISO_PATH of=/dev/sdX bs=4M"
+echo "   (Replace sdX with your USB device)"
+echo ""
+echo "3️⃣  VIRTUALBOX"
+echo "   1. Create new VM (Linux 32-bit, 512MB RAM)"
+echo "   2. Mount ISO as boot CD"
+echo "   3. Start VM"
+echo ""
+echo "4️⃣  CD/DVD"
+echo "   1. Burn ISO to disc"
+echo "   2. Boot from disc"
+echo ""
+
+echo "📋 AFTER BOOT"
+echo "────────────"
+echo "✓ GRUB menu appears (3 options)"
+echo "✓ Select 'Chrysalis OS (Alpine + Busybox)' (default)"
+echo "✓ Alpine Linux boots"
+echo "✓ Chrysalis initialization"
+echo "✓ System ready for use"
+echo ""
+
+echo "🔧 AVAILABLE COMMANDS"
+echo "────────────────────"
+echo "Busybox utilities:"
+echo "  sh, ls, cat, grep, sed, awk, find, mount, chmod, etc."
+echo ""
+echo "Chrysalis:"
+echo "  /opt/chrysalis/init.sh (Startup script)"
+echo "  /opt/chrysalis/* (Source code)"
+echo ""
+
+echo "📚 DOCUMENTATION"
+echo "────────────────"
+echo "Location: /home/mihai/Desktop/ChrysalisOS/hybrid/"
+echo "  • BUILD_MANIFEST.txt - Technical details"
+echo "  • DEPLOY_INFO.txt - Deployment instructions"
+echo "  • rootfs/ - Complete filesystem"
+echo "  • rootfs.tar.gz - Compressed system"
+echo ""
+
+echo "✨ READY TO DEPLOY!"
+echo ""

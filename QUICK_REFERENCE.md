@@ -1,17 +1,33 @@
-# 🔧 Chrysalis OS - Quick Reference Card
+# 🔧 Chrysalis OS - Alpine Integration Quick Reference
 
-## 🚀 Quick Start (3 Steps)
+## 🎯 What You Have
 
-```bash
-# 1. Build
-cd /home/mihai/Desktop/ChrysalisOS/os && npm run build
-
-# 2. Boot  
-npm run run:hdd
-
-# 3. At prompt, type:
-> installer
+**Production-Ready Bootable ISO:**
 ```
+/home/mihai/Desktop/ChrysalisOS/hybrid/chrysalis-alpine-hybrid.iso (61 MB)
+```
+
+Contains: Alpine Linux 3.19 + Linux Kernel 6.6 + Busybox 1.36.1 + Chrysalis OS
+
+## 🚀 Deploy in 1 Minute
+
+### QEMU (Virtual Machine)
+```bash
+qemu-system-i386 -cdrom /home/mihai/Desktop/ChrysalisOS/hybrid/chrysalis-alpine-hybrid.iso -m 512
+```
+
+### USB Stick
+```bash
+sudo dd if=/home/mihai/Desktop/ChrysalisOS/hybrid/chrysalis-alpine-hybrid.iso of=/dev/sdX bs=4M
+sudo sync
+sudo eject /dev/sdX
+```
+Replace `sdX` with your USB device
+
+### VirtualBox
+1. New VM (Linux 32-bit, 512MB)
+2. Mount ISO as boot CD
+3. Start VM
 
 ---
 
